@@ -5,6 +5,8 @@
 /*-build-*
 /lib
 /bin
+/.idea
+/.vscode
 
 # Compiled Object files
 *.slo
