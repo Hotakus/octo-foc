@@ -99,10 +99,9 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
     foc->zero_angle_calibrated = true;
     foc_pwm_pause(foc);
 
-    foc->theta = 0;
-    foc->theta_elec = 0;
-    foc->full_rotation = 0;
-    foc->velocity = 0;
+    // dump data
+    foc_get_angle(foc);
+    foc_get_velocity(foc);
 
     FOC_PRINTF("[%s] init angle: %f rad\r\n", FOC_CHECK_NAME(foc->name), foc->init_angle);
     FOC_PRINTF("[%s] ----------------- calibrated done. (%d)-----------------\r\n", FOC_CHECK_NAME(foc->name), retry);
