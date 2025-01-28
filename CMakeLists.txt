@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(octo-foc
         LANGUAGES C
-        VERSION 1.0.0.0
+        VERSION 1.0.2.0
         DESCRIPTION "Octo-FOC"
-        # HOMEPAGE_URL
+        HOMEPAGE_URL https://github.com/Hotakus/octo-foc
 )
 #project(octofoc C CXX ASM)
 set(CMAKE_C_STANDARD 99)
@@ -25,6 +25,7 @@ include_directories(./
                     ./src/foc
                     ./src/pid
                     ./src/qmath
+                    ./src/soft_control
                     foc_port
 )
 
@@ -33,6 +34,7 @@ file(GLOB_RECURSE SOURCES
      "./src/pid/*.*"
      "./src/qmath/*.*"
      "./foc_port/*.*"
+     "./src/soft_control/*.*"
 )
 
 add_subdirectory(./src/sensor)
@@ -43,5 +45,6 @@ target_include_directories(octo-foc PUBLIC
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/foc
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/pid
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/qmath
+                           ${CMAKE_CURRENT_SOURCE_DIR}/src/soft_control
                            ${CMAKE_CURRENT_SOURCE_DIR}/foc_port
 )
