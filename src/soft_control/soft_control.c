@@ -21,10 +21,12 @@ static float cubic_easing(float t) {
     return 10.0f * t3 - 15.0f * t3 * t + 6.0f * t3 * t * t;
 }
 
-/* 初始化控制器 */
+/**
+ * @brief Initialize the ramp controller
+ * @param ctrl ramp controller
+ * @param init_vel initial velocity (>= 0)
+ */
 void soft_ctrl_ramp_init(soft_ctrl_ramp_t *ctrl, float init_vel) {
-    init_vel = fmaxf(init_vel, 0.0f);
-
     *ctrl = (soft_ctrl_ramp_t){
         .tgt_vel = init_vel,
         .curr_vel = init_vel,
@@ -58,7 +60,7 @@ void soft_ctrl_ramp_emergency_stop(soft_ctrl_ramp_t *ctrl) {
 /**
  * @brief Start acceleration process
  * @param ctrl ramp controller
- * @param target_vel target velocity (>= 0)
+ * @param target_vel target velocity
  * @param duration duration of acceleration process (>= 0)
  */
 void soft_ctrl_ramp_start_accel(soft_ctrl_ramp_t *ctrl, float target_vel, float duration) {
@@ -68,7 +70,7 @@ void soft_ctrl_ramp_start_accel(soft_ctrl_ramp_t *ctrl, float target_vel, float 
     }
 
     const soft_ctrl_ramp_state_t prev_state = ctrl->state;
-    ctrl->tgt_vel = fmaxf(target_vel, 0.0f);
+    ctrl->tgt_vel = target_vel;
     ctrl->t_accel = fmaxf(duration, SOFT_CONTROL_MIN_DURATION);
     ctrl->start_vel = ctrl->curr_vel;
     ctrl->elapsed_t = 0.0f;
@@ -164,7 +166,7 @@ float soft_ctrl_ramp_update(soft_ctrl_ramp_t *ctrl, float dt) {
 /**
  * @brief Reset the ramp controller to its initial state
  * @param ctrl ramp controller
- * @param init_vel initial velocity (>= 0)
+ * @param init_vel initial velocity
  */
 void soft_ctrl_ramp_reset(soft_ctrl_ramp_t *ctrl, float init_vel) {
     soft_ctrl_ramp_init(ctrl, init_vel);
