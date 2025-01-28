@@ -97,10 +97,14 @@ void pid_positional_update(pid_t *pid, float input, float setpoint) {
         } else if (pid->integral < pid->out_min) {
             pid->integral = pid->out_min;
         }
+    } else {
+        pid->integral = 0;
     }
 
     if (pid->enable_part & PID_PART_DERIVATIVE) {
         pid->derivative = pid->kd / pid->dt * (pid->current_err - pid->last_err);
+    } else {
+        pid->derivative = 0;
     }
 
     pid->output = pid->proportional + pid->integral + pid->derivative;
