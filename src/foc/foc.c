@@ -1003,10 +1003,6 @@ foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_s
     if (sustain_ms == 0) {
         return FOC_ERR_OK;
     }
-    // if (foc->zero_angle_calibrated == false) {
-    //     FOC_PRINTF("[%s] foc is not calibrated.\r\n", FOC_CHECK_NAME(foc->name));
-    //     return FOC_ERR_NOT_CALIBRATED;
-    // }
 
     float theta = 0;
     float theta_prev = 0;
@@ -1097,10 +1093,6 @@ foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms) {
     if (sustain_ms == 0) {
         return FOC_ERR_OK;
     }
-    // if (foc->zero_angle_calibrated == false) {
-    //     FOC_PRINTF("[%s] foc is not calibrated.\r\n", FOC_CHECK_NAME(foc->name));
-    //     return FOC_ERR_NOT_CALIBRATED;
-    // }
 
     for (uint8_t i = 0; i < 2; i++) {
         foc_err_enum_t err = foc_openloop_test(foc, u_q, 0, 0.1f, sustain_ms);
