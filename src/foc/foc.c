@@ -26,6 +26,16 @@ do { \
     } \
 } while (0)
 
+
+static uint8_t phase_seq[6][3] = {
+    {0, 1, 2}, // U-V-W, default
+    {1, 0, 2}, // V-U-W
+    {1, 2, 0}, // V-W-U
+    {2, 0, 1}, // W-U-V
+    {2, 1, 0}, // W-V-U
+    {0, 2, 1}, // U-W-V
+};
+
 /**
  * @brief           :  FOC Clarke and Park transform for U
  * @param[in] foc   :  object
@@ -61,7 +71,7 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
     foc->max_voltage = foc->src_voltage / SQRT3; // calculate max voltage of ensuring smooth control
     foc->max_rpm = foc->max_voltage * foc->kv_value; // calculate max rpm in theory、
 
-    float calibration_voltage = foc->max_voltage / (div >= 1.0f ? div : 3.0f);
+    float calibration_voltage = foc->max_voltage * div;
     FOC_PRINTF("[%s] max smooth voltage: %.2f V\r\n", FOC_CHECK_NAME(foc->name), foc->max_voltage);
     FOC_PRINTF("[%s] max smooth RPM: %.2f RPM\r\n", FOC_CHECK_NAME(foc->name), foc->max_rpm);
     FOC_PRINTF("[%s] align zero angel after %d ms.\r\n", FOC_CHECK_NAME(foc->name), ms);
@@ -221,11 +231,12 @@ foc_t *foc_create(char *name) {
     foc->src_voltage = 0.0f;
     foc->velocity = 0.0f;
 
+    foc->dir_flag = 1;
     foc->name = name;
 
-    foc->phase_seq[0] = 0;
-    foc->phase_seq[1] = 1;
-    foc->phase_seq[2] = 2;
+    foc->phase_seq[0] = phase_seq[FOC_DEFAULT_PHASE_SEQ][0];
+    foc->phase_seq[1] = phase_seq[FOC_DEFAULT_PHASE_SEQ][1];
+    foc->phase_seq[2] = phase_seq[FOC_DEFAULT_PHASE_SEQ][2];
 
     foc->loop_mode = FOC_LOOP_SPEED;
 
@@ -926,6 +937,19 @@ pid_t *foc_pid_cur_d(const foc_t *foc) {
     return foc->pid.cur_d;
 }
 
+static __inline void FOC_ATTR _foc_check_full_rotation(foc_t *foc) {
+}
+
+static __inline void FOC_ATTR _foc_get_angle(foc_t *foc) {
+}
+
+static __inline float calculate_angle_difference(float current, float previous) {
+    float diff = current - previous;
+    // 归一化到[-π, π]
+    diff = fmodf(diff + PI, TWOPI) - PI;
+    return diff;
+}
+
 /**
  * @brief      : Get the current angle from angle sensor to FOC object
  * @param[in] foc: The FOC object
@@ -936,7 +960,7 @@ void FOC_ATTR foc_get_angle(foc_t *foc) {
     foc->theta = (float)raw_data * foc->theta_factor;
 
     // calculate full rotation
-    float d_angle = foc->theta - foc->theta_prev;
+    float d_angle = calculate_angle_difference(foc->theta, foc->theta_prev);
     if (fabsf(d_angle) > (0.8 * TWOPI)) {
         foc->full_rotation += d_angle > 0 ? -TWOPI : TWOPI;
     }
@@ -964,29 +988,65 @@ float FOC_ATTR foc_get_velocity(foc_t *foc) {
  * @param[in] foc: The FOC object
  * @param[in] u_q: The q axis voltage
  * @param[in] u_d: The d axis voltage
+ * @param[in] angle_step: The angle step, in degrees
  * @param[in] sustain_ms: The testing time in milliseconds
  * @return     : The error code
  */
-foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, size_t sustain_ms) {
+foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_step, size_t sustain_ms) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
+
+#endif
+
     if (u_q == 0.0f && u_d == 0.0f) {
         return FOC_ERR_INVALID_PARAM;
     }
     if (sustain_ms == 0) {
         return FOC_ERR_OK;
     }
-#endif
+    // if (foc->zero_angle_calibrated == false) {
+    //     FOC_PRINTF("[%s] foc is not calibrated.\r\n", FOC_CHECK_NAME(foc->name));
+    //     return FOC_ERR_NOT_CALIBRATED;
+    // }
+
+    float theta = 0;
+    float theta_prev = 0;
+    float full_rotation = 0;
+    float d_sum = 0;
+    float d_angle = 0;
+    uint32_t raw_data = 0;
+
+    foc->func.get_angle(&raw_data);
+    theta = (float)raw_data * foc->theta_factor;
+    theta_prev = theta;
 
     for (size_t i = 0; i < sustain_ms; i++) {
-        foc_get_angle(foc);
-        foc_get_velocity(foc);
+        foc->theta += angle_step * DEG2RAD;
+        foc->theta_elec = foc_normalize_angle((foc->theta - foc->init_angle) * (float)foc->pole_pairs);
+
+        foc->func.get_angle(&raw_data);
+        theta = (float)raw_data * foc->theta_factor;
+        d_angle = theta - theta_prev;
+        d_sum += d_angle;
+        if (fabsf(d_angle) > (0.8 * TWOPI)) {
+            full_rotation += d_angle > 0 ? -TWOPI : TWOPI;
+        }
+        theta_prev = theta;
+
         foc_set_udq(foc, u_d, u_q);
         foc_inv_park(foc);
         foc_svpwm(foc);
         FOC_DELAY(1);
     }
     foc_pwm_pause(foc);
+
+    d_sum += full_rotation;
+    if (d_sum > 0) {
+        foc->dir_flag = 1;
+    } else {
+        foc->dir_flag = -1;
+    }
+    FOC_PRINTF("[%s] (dir: %d, full rotation: %f).\r\n", FOC_CHECK_NAME(foc->name), foc->dir_flag, d_sum * RAD2DEG);
 
     return FOC_ERR_OK;
 }
@@ -1005,9 +1065,9 @@ foc_err_enum_t foc_check_dir(foc_t *foc) {
 #endif
 
     if ((int)foc->velocity > 0) {
-        foc->direction = 1;
+        foc->dir_flag = 1;
     } else {
-        foc->direction = 0;
+        foc->dir_flag = -1;
     }
 
     return FOC_ERR_OK;
@@ -1019,55 +1079,52 @@ static void swap(uint8_t *x, uint8_t *y) {
     *y = temp;
 };
 
+
 /**
  * @brief      : Check the phase sequence of the motor
  * @param[in] foc: The FOC object
  * @param[in] u_q: The q axis voltage
- * @param[in] full_rotation_threshold: The full rotation threshold in Mechanical angle
  * @param[in] sustain_ms: The testing time in milliseconds
  * @return     : The error code
  */
-foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, float full_rotation_threshold, size_t sustain_ms) {
+foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
+#endif
+
     if (u_q == 0.0f) {
         return FOC_ERR_INVALID_PARAM;
     }
     if (sustain_ms == 0) {
         return FOC_ERR_OK;
     }
-#endif
+    // if (foc->zero_angle_calibrated == false) {
+    //     FOC_PRINTF("[%s] foc is not calibrated.\r\n", FOC_CHECK_NAME(foc->name));
+    //     return FOC_ERR_NOT_CALIBRATED;
+    // }
 
-    if (foc->zero_angle_calibrated == false) {
-        foc_err_enum_t err = foc_zero_angle_calibration(foc, 0, sustain_ms, 3.5f, 10);
+    for (uint8_t i = 0; i < 2; i++) {
+        foc_err_enum_t err = foc_openloop_test(foc, u_q, 0, 0.1f, sustain_ms);
         if (err != FOC_ERR_OK) {
-            FOC_PRINTF("[%s] zero angle calibration error.\r\n", FOC_CHECK_NAME(foc->name));
-            FOC_PRINTF("[%s] phase sequence error.\r\n", FOC_CHECK_NAME(foc->name));
+            FOC_PRINTF("[%s] openloop test error (%d).\r\n", FOC_CHECK_NAME(foc->name), err);
             return err;
         }
-    }
-
-    uint8_t retry = 2;
-    do {
-        foc_openloop_test(foc, u_q, 0, sustain_ms);
-        foc_check_dir(foc);
-        if (foc->direction != 1 || foc->full_rotation < (full_rotation_threshold)) {
+        if (foc->dir_flag != 1) {
             FOC_PRINTF("[%s] phase sequence (UVW: %d%d%d) error.\r\n", FOC_CHECK_NAME(foc->name),
                        foc->phase_seq[0], foc->phase_seq[1], foc->phase_seq[2]);
             swap(&foc->phase_seq[0], &foc->phase_seq[1]);
         } else {
             break;
         }
-    } while (--retry);
-    if (retry == 0) {
-        FOC_PRINTF("[%s] phase sequence error, please adjust the phase sequence(%d).\r\n", FOC_CHECK_NAME(foc->name), retry);
-        foc->phase_calibrated = false;
-        foc->zero_angle_calibrated = false;
-        return FOC_ERR_FAILED;
     }
-    FOC_PRINTF("[%s] phase sequence (UVW: %d%d%d) is ok.\r\n", FOC_CHECK_NAME(foc->name),
-               foc->phase_seq[0], foc->phase_seq[1], foc->phase_seq[2]);
-    foc->phase_calibrated = true;
+
+    if (foc->dir_flag == 1) {
+        FOC_PRINTF("[%s] phase sequence (UVW: %d%d%d) ok.\r\n", FOC_CHECK_NAME(foc->name),
+                   foc->phase_seq[0], foc->phase_seq[1], foc->phase_seq[2]);
+    } else {
+        FOC_PRINTF("[%s] check phase sequence error.\r\n", FOC_CHECK_NAME(foc->name));
+    }
+
     return FOC_ERR_OK;
 }
 
@@ -1080,12 +1137,37 @@ foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, float full_rotation_th
 foc_err_enum_t foc_set_loop_mode(foc_t *foc, foc_loop_enum_t mode) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
+#endif
     if (mode > FOC_LOOP_ALL) {
         return FOC_ERR_INVALID_PARAM;
     }
-#endif
     foc->loop_mode = mode;
     return FOC_ERR_OK;
+}
+
+void foc_position_task(foc_t *foc) {
+}
+
+void foc_speed_task(foc_t *foc) {
+}
+
+
+void foc_cur_sample_task(foc_t *foc) {
+    // current sampling and calculation
+    if ((foc->func.current_sample_get != NULL) && (foc->loop_mode & FOC_LOOP_CURRENT)) {
+        foc_current_get(foc);
+        foc_clarke(foc);
+        foc_park(foc);
+        if (foc->lpf.cur_d != NULL) {
+            foc_lpf_cur_d_calc(foc);
+        }
+        if (foc->lpf.cur_q != NULL) {
+            foc_lpf_cur_q_calc(foc);
+        }
+    }
+}
+
+void foc_control_task(foc_t *foc) {
 }
 
 /**
@@ -1095,7 +1177,7 @@ foc_err_enum_t foc_set_loop_mode(foc_t *foc, foc_loop_enum_t mode) {
 void foc_task(foc_t *foc) {
     // angle and velocity
     if (foc->func.get_angle == NULL) {
-        foc->theta += 1 * DEG2RAD; // simulating angle auto increment
+        foc->theta += 0.1f * DEG2RAD; // simulating angle auto increment
         foc->theta_elec = foc_normalize_angle((foc->theta - foc->init_angle) * (float)foc->pole_pairs);
     } else {
         foc_get_angle(foc);
@@ -1110,6 +1192,9 @@ void foc_task(foc_t *foc) {
         foc_current_get(foc);
         foc_clarke(foc);
         foc_park(foc);
+        if (foc->lpf.cur_d != NULL) {
+            foc_lpf_cur_d_calc(foc);
+        }
         if (foc->lpf.cur_q != NULL) {
             foc_lpf_cur_q_calc(foc);
         }
@@ -1117,6 +1202,7 @@ void foc_task(foc_t *foc) {
 
     // PID control
     float output = 0;
+    float d_output = 0;
     if (foc->loop_mode & FOC_LOOP_POSITION) {
         pid_positional_update(foc->pid.pos, foc->theta + foc->full_rotation, foc->pos_setpoint);
         foc->vel_setpoint = foc->pid.pos->output;
@@ -1129,11 +1215,14 @@ void foc_task(foc_t *foc) {
     }
     if (foc->loop_mode & FOC_LOOP_CURRENT) {
         pid_positional_update(foc->pid.cur_q, foc->i_q, foc->cur_q_setpoint);
+        pid_positional_update(foc->pid.cur_d, foc->i_d, 5);
         output = foc->pid.cur_q->output;
+        d_output = foc->pid.cur_d->output;
     }
 
     // motor control
-    foc_set_udq(foc, 0, output);
+    foc_set_udq(foc, d_output, 0);
+    // foc_set_udq(foc, 0, output);
     foc_inv_park(foc);
     foc_svpwm(foc);
 }

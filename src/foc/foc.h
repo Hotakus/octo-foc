@@ -31,6 +31,7 @@
 #define FOC_DEFAULT_VEL_SETPOINT    (TWOPI * 3)         // 3 revolutions per second
 #define FOC_DEFAULT_POS_SETPOINT    (120.0f * DEG2RAD)  // 120 degree convert to radian
 #define FOC_DEFAULT_CUR_Q_SETPOINT  (0.1f)              // 0.1A
+#define FOC_DEFAULT_PHASE_SEQ       (0u)                // default phase sequence
 
 /* --------------------- FOC_MATH_CAL_METHOD --------------------- */
 #if FOC_MATH_CAL_METHOD == 0
@@ -77,7 +78,8 @@ typedef enum foc_err_enum_t{
     FOC_ERR_FAILED,
     FOC_ERR_NULL_PTR,
     FOC_ERR_INVALID_PARAM,
-    FOC_ERR_NOT_CALIBRATED
+    FOC_ERR_NOT_CALIBRATED,
+    FOC_ERR_MISSING_SOURCE,
 } foc_err_enum_t;
 
 // LPF struct
@@ -150,135 +152,153 @@ typedef enum foc_pid_method_t {
 
 /* ------------------------ FOC Struct ------------------------ */
 typedef struct foc_t {
-    float theta;                   // Mechanical angle
+    /*--------------------- Core State Variables ---------------------*/
+    // Angle related
+    float theta;                   // Mechanical angle (rad)
     float theta_prev;              // Previous mechanical angle
-    float theta_elec;              // Electrical angle
-    float theta_factor;            // Mechanical angle factor, used for angle calculation
+    float theta_elec;              // Electrical angle (rad)
+    float theta_factor;            // Pole pairs multiplier (pole_pairs * 2π)
+    float full_rotation;           // Full rotation count
+    float full_rotation_prev;      // Previous full rotation count
 
-    float velocity;                // Velocity (rad/s)
-    float velocity_prev;           // Previous velocity
+    // Velocity related
+    float velocity;                // Angular velocity (rad/s)
+    float velocity_prev;           // Previous angular velocity
 
-    float sine;                    // Sine of electrical angle
-    float cosine;                  // Cosine of electrical angle
-
-    float full_rotation;           // full rotations
-    float full_rotation_prev;      // Previous full rotations
-
-    float kv_value;                // KV value
-    float max_rpm;                 // Maximum RPM
-    float max_voltage;             // Maximum voltage for SVPWM smooth control
-    float src_voltage;             // Source voltage
-    float torque;                  // Current torque
-    float init_angle;              // Initial mechanical angle
-    float dt;                      // delta time (s)
-
-    float i_d;                    // Direct current (d-axis)
-    float i_q;                    // Quadrature current (q-axis)
-    float i_alpha;                // Alpha-axis current
-    float i_beta;                 // Beta-axis current
+    // Current measurements
+    float i_d;                     // Direct-axis current
+    float i_q;                     // Quadrature-axis current
+    float i_alpha;                 // Alpha-axis current (Clark transform)
+    float i_beta;                  // Beta-axis current (Clark transform)
     union {
-        float i_phase[3];
+        float i_phase[3];          // Phase currents (array format)
         struct {
-            float i_u;                    // Phase A current
-            float i_v;                    // Phase B current
-            float i_w;                    // Phase C current
+            float i_u;             // Phase U current
+            float i_v;             // Phase V current
+            float i_w;             // Phase W current
         };
     };
 
-    float u_d;                    // Direct voltage (d-axis)
-    float u_q;                    // Quadrature voltage (q-axis)
-    float u_alpha;                // Alpha-axis voltage
-    float u_beta;                 // Beta-axis voltage
+    // Voltage outputs
+    float u_d;                     // Direct-axis voltage
+    float u_q;                     // Quadrature-axis voltage
+    float u_alpha;                 // Alpha-axis voltage (Clark transform)
+    float u_beta;                  // Beta-axis voltage (Clark transform)
     union {
-        float u_phase[3];
+        float u_phase[3];          // Phase voltages (array format)
         struct {
-            float t_u;                    // PWM timing for phase A
-            float t_v;                    // PWM timing for phase B
-            float t_w;                    // PWM timing for phase C
+            float t_u;             // PWM duty cycle timing for phase U
+            float t_v;             // PWM duty cycle timing for phase V
+            float t_w;             // PWM duty cycle timing for phase W
         };
     };
 
+    /*--------------------- Control Variables ---------------------*/
+    // Setpoints
     union {
-        float setpoint[3];
+        float setpoint[3];         // Control setpoint array
         struct {
-            float vel_setpoint;
-            float pos_setpoint;
-            float cur_q_setpoint;
+            float vel_setpoint;    // Velocity target (rad/s)
+            float pos_setpoint;    // Position target (rad)
+            float cur_q_setpoint;  // Q-axis current target (A)
         };
     };
 
-
+    // Filters & Controllers
     union {
-        foc_lpf_t *(lpf_all[3]);
+        foc_lpf_t *(lpf_all[3]);   // LPF array [velocity, d-axis, q-axis]
         struct {
-            foc_lpf_t *vel;
-            foc_lpf_t *cur_d;
-            foc_lpf_t *cur_q;
+            foc_lpf_t *vel;        // Velocity low-pass filter
+            foc_lpf_t *cur_d;      // D-axis current filter
+            foc_lpf_t *cur_q;      // Q-axis current filter
         } lpf;
     };
 
     union {
-        pid_t *(pid_all[4]);
+        pid_t *(pid_all[4]);       // PID array [velocity, position, d/q-axis]
         struct {
-            pid_t *vel;
-            pid_t *pos;
-            pid_t *cur_d;
-            pid_t *cur_q;
+            pid_t *vel;            // Velocity PID controller
+            pid_t *pos;            // Position PID controller
+            pid_t *cur_d;          // D-axis current PID
+            pid_t *cur_q;          // Q-axis current PID
         } pid;
     };
 
-    uint32_t angle_sensor_resolution;  // Angle sensor resolution
-    foc_current_param_t current_param;
+    /*--------------------- System Parameters ---------------------*/
+    // Motor characteristics
+    float kv_value;                // KV rating (RPM/Volt)
+    float max_rpm;                 // Maximum operating RPM
+    float max_voltage;             // Voltage limit for SVM
+    float src_voltage;             // DC bus voltage
+    uint8_t pole_pairs;            // Number of motor pole pairs
+    foc_current_param_t current_param;  // Current sensing configuration
 
+    // System configuration
+    float dt;                      // Control loop period (seconds)
+    uint16_t pwm_period;           // PWM timer period (counter ticks)
+    uint32_t angle_sensor_resolution; // Encoder CPR (counts per revolution)
+    foc_loop_enum_t loop_mode;     // Active control loop mode
+
+    // Phase configuration
+    union {
+        uint8_t phase_seq[3];      // Phase mapping [U, V, W]
+        struct {
+            uint8_t phase_u_index; // Hardware phase U index
+            uint8_t phase_v_index; // Hardware phase V index
+            uint8_t phase_w_index; // Hardware phase W index
+        };
+    };
+
+    /*--------------------- Hardware Interfaces ---------------------*/
+    // Function pointers
     struct {
-        foc_duty_set_t duty_set;      // Duty cycle settings
-        foc_pwm_start_t pwm_start;    // PWM start settings
-        foc_pwm_pause_t pwm_pause;    // PWM pause settings
-        void (*get_angle)(uint32_t *raw_data);  // Function pointer for angle sensor
-        foc_current_sample_get_t current_sample_get;
+        foc_duty_set_t duty_set;   // PWM duty set function
+        foc_pwm_start_t pwm_start; // PWM enable/disable
+        foc_pwm_pause_t pwm_pause;
+        void (*get_angle)(uint32_t *raw_data); // Angle sensor read callback
+        foc_current_sample_get_t current_sample_get; // Current sampling callback
     } func;
 
-    char *name;
+    /*--------------------- Debug/System Control ---------------------*/
+    char *name;                    // Instance identifier
+    float init_angle;              // Initial mechanical offset (rad)
+    float torque;                  // Estimated torque (Nm)
+
+    // Status flags
+    union {
+        uint16_t state;
+        struct {
+            bool phase_calibrated : 1;     // Phase calibration status
+            bool current_phase_aligned : 1;// Current-phase alignment status
+            bool current_calibrated : 1;   // Current sensor calibration
+            bool zero_angle_calibrated : 1;// Zero angle calibration
+            bool trigo_calc_done : 1;      // Trigonometry calculation done
+            bool pwm_is_running : 1;       // PWM output status
+            bool inited : 1;               // Initialization status
+            bool dir : 1;                  // Rotation direction (1=CW, 0=CCW)
+            int8_t dir_flag;               // Direction multiplier (-1/1)
+        };
+    };
 
 #if FOC_DATA_PERSISTENCE == 1
-    foc_snapshot_t snapshot;            // Snapshot, used for data persistence
+    /*--------------------- Data Persistence ---------------------*/
+    foc_snapshot_t snapshot;       // State snapshot for crash recovery
 #endif
 
 #if FOC_USE_FREERTOS == 1
-#if FOC_USE_ESP_IDF == 1
-    spinlock_t lock;
-#else
-    osMutexAttr_t lock_attr;
-    osMutexId_t lock;
+    /*--------------------- RTOS Integration ---------------------*/
+    #if FOC_USE_ESP_IDF == 1
+    spinlock_t lock;               // ESP32 atomic spinlock
+    #else
+    osMutexAttr_t lock_attr;       // CMSIS-RTOS mutex attributes
+    osMutexId_t lock;              // Mutex handle
+    #endif
 #endif
-#endif
 
-    uint16_t pwm_period;                // PWM period
-    uint8_t pole_pairs;                 // Number of pole pairs
-    union {
-        uint8_t phase_seq[3];           // Phase sequence
-        struct {
-            uint8_t phase_u_index;      // Phase U
-            uint8_t phase_v_index;      // Phase V
-            uint8_t phase_w_index;      // Phase W
-        };
-    };
-
-    foc_loop_enum_t loop_mode;           // Loop mode, default is speed loop only
-
-    union {
-        uint8_t state;
-        struct {
-            bool phase_calibrated : 1;          // Phase calibration flag
-            bool current_phase_aligned : 1;     // Current phase alignment flag
-            bool current_calibrated : 1;        // Current calibration flag
-            bool zero_angle_calibrated : 1;     // Zero angle calibration flag
-            bool trigo_calc_done : 1;           // Trigonometric calculation flag
-            bool pwm_is_running : 1;            // PWM running flag
-            bool direction : 1;                 // Direction flag, 1 for clockwise, 0 for counterclockwise, read only
-            bool inited : 1;                    // Initialization flag
-        };
-    };
+    /*--------------------- Computation Cache ---------------------*/
+    // High-frequency variables at end for cache optimization
+    float sine;                    // sin(theta_elec)
+    float cosine;                  // cos(theta_elec)
 } __attribute__((aligned(4))) foc_t;
 
 
@@ -371,14 +391,21 @@ pid_t *foc_pid_cur_d(const foc_t *foc);
 void foc_get_angle(foc_t *foc);
 
 /* FOC Test */
-foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, size_t sustain_ms);
+foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_step, size_t sustain_ms);
 foc_err_enum_t foc_check_dir(foc_t *foc);
-foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, float full_rotation_threshold, size_t sustain_ms);
+foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms);
 foc_err_enum_t foc_check_current_phase_seq(); // TODO: check current phase sequence
 
 /* FOC Task */
 foc_err_enum_t foc_set_loop_mode(foc_t *foc, foc_loop_enum_t mode);
 void foc_task(foc_t *foc);
+
+void foc_position_task(foc_t *foc);
+void foc_speed_task(foc_t *foc);
+void foc_cur_sample_task(foc_t *foc);
+void foc_control_task(foc_t *foc);
+
+
 
 /* FOC Data Persistence */
 #if FOC_DATA_PERSISTENCE == 1
