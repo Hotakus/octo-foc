@@ -1043,6 +1043,10 @@ foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_s
     }
     FOC_PRINTF("[%s] (dir: %d, full rotation: %f).\r\n", FOC_CHECK_NAME(foc->name), foc->dir_flag, d_sum * RAD2DEG);
 
+    // dump data
+    foc_get_angle(foc);
+    foc_get_velocity(foc);
+
     return FOC_ERR_OK;
 }
 
@@ -1206,13 +1210,13 @@ void foc_task(foc_t *foc) {
     }
     if (foc->loop_mode & FOC_LOOP_CURRENT) {
         pid_positional_update(foc->pid.cur_q, foc->i_q, foc->cur_q_setpoint);
-        pid_positional_update(foc->pid.cur_d, foc->i_d, 5);
+        pid_positional_update(foc->pid.cur_d, foc->i_d, 0);
         output = foc->pid.cur_q->output;
         d_output = foc->pid.cur_d->output;
     }
 
     // motor control
-    foc_set_udq(foc, d_output, 0);
+    foc_set_udq(foc, d_output, output);
     // foc_set_udq(foc, 0, output);
     foc_inv_park(foc);
     foc_svpwm(foc);
