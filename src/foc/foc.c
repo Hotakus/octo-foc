@@ -55,59 +55,57 @@ void foc_park_u(foc_t *foc) {
  * @param[in] foc   : FOC object
  * @param[in] theta_elec : electrical angle：0
  * @param[in] ms : time for calibration
- * @param[in] div : voltage divider, default 3.0f，if 1.0f, use max smooth voltage
- * @param[in] retry : retry times, default 10
+ * @param[in] voltage_divider : voltage divider, default 3.0f，if 1.0f, use max smooth voltage
+ * @param[in] max_retry : retry times, default 10
  */
-foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t ms, float div, unsigned char retry) {
+foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t ms, float voltage_divider, uint8_t max_retry) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
 #endif
+    if (voltage_divider <= 0 || voltage_divider > 3.0f) {
+        return FOC_ERR_INVALID_PARAM;
+    }
 
-    FOC_PRINTF("[%s] ---------------- calibration start. ----------------\r\n", FOC_CHECK_NAME(foc->name));
-
+    FOC_PRINTF("[%s] ---------------- Calibration Start. ----------------\r\n", FOC_CHECK_NAME(foc->name));
     FOC_LOCK_ACQUIRE(foc->lock, portMAX_DELAY);
 
     /* some calculation */
     foc->max_voltage = foc->src_voltage / SQRT3; // calculate max voltage of ensuring smooth control
     foc->max_rpm = foc->max_voltage * foc->kv_value; // calculate max rpm in theory、
 
-    float calibration_voltage = foc->max_voltage * div;
-    FOC_PRINTF("[%s] max smooth voltage: %.2f V\r\n", FOC_CHECK_NAME(foc->name), foc->max_voltage);
-    FOC_PRINTF("[%s] max smooth RPM: %.2f RPM\r\n", FOC_CHECK_NAME(foc->name), foc->max_rpm);
-    FOC_PRINTF("[%s] align zero angel after %d ms.\r\n", FOC_CHECK_NAME(foc->name), ms);
-    FOC_PRINTF("[%s] calibration voltage: %.2f V\r\n", FOC_CHECK_NAME(foc->name), calibration_voltage);
+    float calibration_voltage = foc->max_voltage * voltage_divider;
+    FOC_PRINTF("[%s] calibration volt: %.2f V\r\n", FOC_CHECK_NAME(foc->name), calibration_voltage);
+    FOC_PRINTF("[%s] max smooth volt : %.2f V\r\n", FOC_CHECK_NAME(foc->name), foc->max_voltage);
+    FOC_PRINTF("[%s] max smooth RPM  : %.2f RPM\r\n", FOC_CHECK_NAME(foc->name), foc->max_rpm);
 
-    /* calibrating electrical angle */
     foc->theta_elec = theta_elec;
-    foc->u_q = 0;
     foc->u_d = calibration_voltage;
+    foc->u_q = 0;
     foc_inv_park(foc);
     foc_svpwm(foc);
-    FOC_DELAY(ms ? ms : 1500);
+    FOC_DELAY(ms ? ms : 1000);
+    foc->theta = 0;
 
+    uint8_t retry = max_retry;
     do {
         foc_get_angle(foc);
         if (foc->theta != 0) break;
-    } while (--retry);
+    } while (--retry > 0);
+
     if (retry == 0) {
         foc_pwm_pause(foc);
-        FOC_PRINTF("[%s] ---------------- calibration failed (%d) ----------------\r\n", FOC_CHECK_NAME(foc->name), retry);
-        while (1) {
-        }
+        FOC_PRINTF("[%s] ---------------- Calibration failed ----------------\r\n", FOC_CHECK_NAME(foc->name));
+        FOC_LOCK_RELEASE(foc->lock);
+        return FOC_ERR_FAILED;
     }
+
     foc->init_angle = foc->theta;
     foc->zero_angle_calibrated = true;
     foc_pwm_pause(foc);
 
-    // dump data
-    foc_get_angle(foc);
-    foc_get_velocity(foc);
-
-    FOC_PRINTF("[%s] init angle: %f rad\r\n", FOC_CHECK_NAME(foc->name), foc->init_angle);
-    FOC_PRINTF("[%s] ----------------- calibrated done. (%d)-----------------\r\n", FOC_CHECK_NAME(foc->name), retry);
-
+    FOC_PRINTF("[%s] Calibration success. Init angle: %.3f rad\r\n", FOC_CHECK_NAME(foc->name), foc->init_angle);
+    FOC_PRINTF("[%s] ---------------- Calibration end. ----------------\r\n", FOC_CHECK_NAME(foc->name));
     FOC_LOCK_RELEASE(foc->lock);
-
     return FOC_ERR_OK;
 }
 
@@ -936,18 +934,6 @@ pid_t *foc_pid_cur_d(const foc_t *foc) {
     return foc->pid.cur_d;
 }
 
-static __inline void FOC_ATTR _foc_check_full_rotation(foc_t *foc) {
-}
-
-static __inline void FOC_ATTR _foc_get_angle(foc_t *foc) {
-}
-
-static __inline float calculate_angle_difference(float current, float previous) {
-    float diff = current - previous;
-    // 归一化到[-π, π]
-    diff = fmodf(diff + PI, TWOPI) - PI;
-    return diff;
-}
 
 /**
  * @brief      : Get the current angle from angle sensor to FOC object
@@ -958,10 +944,10 @@ void FOC_ATTR foc_get_angle(foc_t *foc) {
     foc->func.get_angle(&raw_data);
     foc->theta = (float)raw_data * foc->theta_factor;
 
-    // calculate full rotation
-    float d_angle = calculate_angle_difference(foc->theta, foc->theta_prev);
-    if (fabsf(d_angle) > (0.8 * TWOPI)) {
-        foc->full_rotation += d_angle > 0 ? -TWOPI : TWOPI;
+    float d_angle = (foc->theta - foc->theta_prev);
+    const float threshold = 0.8 * PI;
+    if (fabsf(d_angle) > threshold) {
+        foc->full_rotation += (d_angle > 0) ? -TWOPI : TWOPI;
     }
 
     // calculate electrical angle

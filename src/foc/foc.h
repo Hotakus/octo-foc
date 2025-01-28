@@ -314,7 +314,7 @@ foc_t *foc_create(char *name);
 foc_err_enum_t foc_destroy(foc_t *foc);
 
 /* FOC Calibration */
-foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t ms, float div, unsigned char retry);
+foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t ms, float voltage_divider, uint8_t max_retry);
 foc_err_enum_t foc_current_calibration(foc_t *foc, size_t calibration_times);
 
 /* FOC Link */
