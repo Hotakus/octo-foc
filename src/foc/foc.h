@@ -13,6 +13,11 @@
 #include "foc_config.h"
 #include "pid.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* --------------------- Some Constants --------------------- */
 #define _1_SQRT3    (0.57735026918962576450914878050196f)
 #define _2_SQRT3    (1.1547005383792515290182975610039f)
@@ -416,9 +421,6 @@ void foc_fs_init(void);
 void foc_fs_deinit(void);
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 
 #ifdef __cplusplus
