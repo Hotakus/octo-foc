@@ -110,45 +110,38 @@ void soft_ctrl_ramp_start_decel(soft_ctrl_ramp_t *ctrl, float target_vel, float 
  * @return current velocity
  */
 float soft_ctrl_ramp_update(soft_ctrl_ramp_t *ctrl, float dt) {
-    dt = fmaxf(dt, 0.0f); // 确保时间正向
+    dt = fmaxf(dt, 0.0f);
 
     switch (ctrl->state) {
         case SOFT_CONTROL_RAMP_IDLE:
-            ctrl->curr_vel = ctrl->tgt_vel; // 速度同步
+            ctrl->curr_vel = ctrl->tgt_vel;
             break;
 
-        case SOFT_CONTROL_RAMP_ACCEL: {
-            ctrl->elapsed_t += dt;
-            const float t = fminf(ctrl->elapsed_t / ctrl->t_accel, 1.0f);
-            const float ease = cubic_easing(t);
-
-            ctrl->curr_vel = ctrl->start_vel +
-                             (ctrl->tgt_vel - ctrl->start_vel) * ease;
-
-            if (t >= 1.0f) {
-                ctrl->state = SOFT_CONTROL_RAMP_CRUISE;
-                ctrl->curr_vel = ctrl->tgt_vel;
-            }
-            break;
-        }
-
+        case SOFT_CONTROL_RAMP_ACCEL:
         case SOFT_CONTROL_RAMP_DECEL: {
+            /* 统一处理加速/减速插值 */
+            const float total_t = (ctrl->state == SOFT_CONTROL_RAMP_ACCEL)
+                                      ? ctrl->t_accel
+                                      : ctrl->t_decel;
+
             ctrl->elapsed_t += dt;
-            const float t = fminf(ctrl->elapsed_t / ctrl->t_decel, 1.0f);
+            const float t = fminf(ctrl->elapsed_t / total_t, 1.0f);
             const float ease = cubic_easing(t);
 
-            ctrl->curr_vel = ctrl->start_vel * (1.0f - ease);
+            /* 通用线性插值公式 */
+            ctrl->curr_vel = ctrl->start_vel + (ctrl->tgt_vel - ctrl->start_vel) * ease;
 
+            /* 状态转移判断 */
             if (t >= 1.0f) {
-                ctrl->state = SOFT_CONTROL_RAMP_IDLE;
-                ctrl->curr_vel = 0.0f;
-                ctrl->tgt_vel = 0.0f;
+                const int is_zero = fabsf(ctrl->tgt_vel) < 1e-6f;
+                ctrl->state = is_zero ? SOFT_CONTROL_RAMP_IDLE : SOFT_CONTROL_RAMP_CRUISE;
+                ctrl->curr_vel = ctrl->tgt_vel; // 消除插值误差
             }
             break;
         }
 
         case SOFT_CONTROL_RAMP_CRUISE:
-            // 消除浮点误差
+            /* 巡航状态维持目标速度 */
             if (fabsf(ctrl->curr_vel - ctrl->tgt_vel) > 1e-6f) {
                 ctrl->curr_vel = ctrl->tgt_vel;
             }

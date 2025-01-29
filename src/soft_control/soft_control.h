@@ -46,7 +46,7 @@ typedef struct {
 const char *soft_ctrl_ramp_get_state_str(const soft_ctrl_ramp_t *ctrl);
 void soft_ctrl_ramp_reset(soft_ctrl_ramp_t *ctrl, float init_vel);
 float soft_ctrl_ramp_update(soft_ctrl_ramp_t *ctrl, float dt);
-void soft_ctrl_ramp_start_decel(soft_ctrl_ramp_t *ctrl, float duration);
+void soft_ctrl_ramp_start_decel(soft_ctrl_ramp_t *ctrl, float target_vel, float duration);
 void soft_ctrl_ramp_start_accel(soft_ctrl_ramp_t *ctrl, float target_vel, float duration);
 void soft_ctrl_ramp_emergency_stop(soft_ctrl_ramp_t *ctrl);
 void soft_ctrl_ramp_init(soft_ctrl_ramp_t *ctrl, float init_vel);
