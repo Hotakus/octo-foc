@@ -24,7 +24,7 @@ static float cubic_easing(float t) {
 /**
  * @brief Initialize the ramp controller
  * @param ctrl ramp controller
- * @param init_vel initial velocity (>= 0)
+ * @param init_vel initial velocity
  */
 void soft_ctrl_ramp_init(soft_ctrl_ramp_t *ctrl, float init_vel) {
     *ctrl = (soft_ctrl_ramp_t){
@@ -87,11 +87,11 @@ void soft_ctrl_ramp_start_accel(soft_ctrl_ramp_t *ctrl, float target_vel, float 
  * @param ctrl ramp controller
  * @param duration duration of deceleration process (>= 0)
  */
-void soft_ctrl_ramp_start_decel(soft_ctrl_ramp_t *ctrl, float duration) {
+void soft_ctrl_ramp_start_decel(soft_ctrl_ramp_t *ctrl, float target_vel, float duration) {
     if (ctrl->emergency) return;
 
     const soft_ctrl_ramp_state_t prev_state = ctrl->state;
-    ctrl->tgt_vel = 0.0f;
+    ctrl->tgt_vel = target_vel;
     ctrl->t_decel = fmaxf(duration, SOFT_CONTROL_MIN_DURATION);
     ctrl->start_vel = ctrl->curr_vel;
     ctrl->elapsed_t = 0.0f;
