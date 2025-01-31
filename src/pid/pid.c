@@ -141,7 +141,7 @@ void pid_incremental_update(pid_t *pid, float input, float setpoint) {
     pid->proportional = pid->kp * pid->current_err;
 
     if (pid->enable_part & PID_PART_INTEGRAL) {
-        pid->integral += pid->ki * pid->current_err;
+        pid->integral += pid->ki * (pid->current_err + pid->last_err) * 0.5f;
 
         if (pid->integral > pid->out_max) {
             pid->integral = pid->out_max;
