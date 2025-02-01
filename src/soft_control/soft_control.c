@@ -57,6 +57,24 @@ void soft_ctrl_ramp_emergency_stop(soft_ctrl_ramp_t *ctrl) {
 }
 
 
+static void start_ramp(soft_ctrl_ramp_t *ctrl, soft_ctrl_ramp_state_t new_state, float target_vel, float duration) {
+    const soft_ctrl_ramp_state_t prev_state = ctrl->state;
+    ctrl->tgt_vel = target_vel;
+    if (new_state == SOFT_CONTROL_RAMP_ACCEL) {
+        ctrl->t_accel = fmaxf(duration, SOFT_CONTROL_MIN_DURATION);
+    } else {
+        ctrl->t_decel = fmaxf(duration, SOFT_CONTROL_MIN_DURATION);
+    }
+    ctrl->start_vel = ctrl->curr_vel;
+    ctrl->elapsed_t = 0.0f;
+    ctrl->state = new_state;
+
+    if (ctrl->on_state_change && prev_state != new_state) {
+        ctrl->on_state_change(prev_state, new_state);
+    }
+}
+
+
 /**
  * @brief Start acceleration process
  * @param ctrl ramp controller
@@ -64,21 +82,8 @@ void soft_ctrl_ramp_emergency_stop(soft_ctrl_ramp_t *ctrl) {
  * @param duration duration of acceleration process (>= 0)
  */
 void soft_ctrl_ramp_start_accel(soft_ctrl_ramp_t *ctrl, float target_vel, float duration) {
-    if (ctrl->emergency ||
-        fabsf(target_vel - ctrl->tgt_vel) < 1e-6f) {
-        return;
-    }
-
-    const soft_ctrl_ramp_state_t prev_state = ctrl->state;
-    ctrl->tgt_vel = target_vel;
-    ctrl->t_accel = fmaxf(duration, SOFT_CONTROL_MIN_DURATION);
-    ctrl->start_vel = ctrl->curr_vel;
-    ctrl->elapsed_t = 0.0f;
-    ctrl->state = SOFT_CONTROL_RAMP_ACCEL;
-
-    if (ctrl->on_state_change && prev_state != SOFT_CONTROL_RAMP_ACCEL) {
-        ctrl->on_state_change(prev_state, SOFT_CONTROL_RAMP_ACCEL);
-    }
+    if (ctrl->emergency) return;
+    start_ramp(ctrl, SOFT_CONTROL_RAMP_ACCEL, target_vel, duration);
 }
 
 
@@ -89,17 +94,7 @@ void soft_ctrl_ramp_start_accel(soft_ctrl_ramp_t *ctrl, float target_vel, float 
  */
 void soft_ctrl_ramp_start_decel(soft_ctrl_ramp_t *ctrl, float target_vel, float duration) {
     if (ctrl->emergency) return;
-
-    const soft_ctrl_ramp_state_t prev_state = ctrl->state;
-    ctrl->tgt_vel = target_vel;
-    ctrl->t_decel = fmaxf(duration, SOFT_CONTROL_MIN_DURATION);
-    ctrl->start_vel = ctrl->curr_vel;
-    ctrl->elapsed_t = 0.0f;
-    ctrl->state = SOFT_CONTROL_RAMP_DECEL;
-
-    if (ctrl->on_state_change && prev_state != SOFT_CONTROL_RAMP_DECEL) {
-        ctrl->on_state_change(prev_state, SOFT_CONTROL_RAMP_DECEL);
-    }
+    start_ramp(ctrl, SOFT_CONTROL_RAMP_DECEL, target_vel, duration);
 }
 
 
