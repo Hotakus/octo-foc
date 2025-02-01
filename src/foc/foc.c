@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include "foc.h"
 
+#include <util_math.h>
+
 #include "foc_fs_port.h"
 
 #define FOC_TAG                     "FOC"
@@ -66,21 +68,19 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
         return FOC_ERR_INVALID_PARAM;
     }
 
-    FOC_PRINTF("[%s] ---------------- Calibration Start. ----------------\r\n", FOC_CHECK_NAME(foc->name));
-    FOC_LOCK_ACQUIRE(foc->lock, portMAX_DELAY);
+    FOC_PRINTF("[%s|%d] ---------------- Calibration Start. ----------------\r\n", FOC_TAG, foc->id);
 
     /* some calculation */
     foc->max_voltage = foc->src_voltage / SQRT3; // calculate max voltage of ensuring smooth control
     foc->max_rpm = foc->max_voltage * foc->kv_value; // calculate max rpm in theory、
 
     float calibration_voltage = foc->max_voltage * voltage_divider;
-    FOC_PRINTF("[%s] calibration volt: %.2f V\r\n", FOC_CHECK_NAME(foc->name), calibration_voltage);
-    FOC_PRINTF("[%s] max smooth volt : %.2f V\r\n", FOC_CHECK_NAME(foc->name), foc->max_voltage);
-    FOC_PRINTF("[%s] max smooth RPM  : %.2f RPM\r\n", FOC_CHECK_NAME(foc->name), foc->max_rpm);
+
 
     foc->theta_elec = theta_elec;
     foc->u_d = calibration_voltage;
     foc->u_q = 0;
+    foc_pwm_start(foc);
     foc_inv_park(foc);
     foc_svpwm(foc);
     FOC_DELAY(ms ? ms : 1000);
@@ -94,7 +94,7 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
 
     if (retry == 0) {
         foc_pwm_pause(foc);
-        FOC_PRINTF("[%s] ---------------- Calibration failed ----------------\r\n", FOC_CHECK_NAME(foc->name));
+        FOC_PRINTF("[%s|%d] ---------------- Calibration failed ----------------\r\n", FOC_TAG, foc->id);
         FOC_LOCK_RELEASE(foc->lock);
         return FOC_ERR_FAILED;
     }
@@ -102,10 +102,14 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
     foc->init_angle = foc->theta;
     foc->zero_angle_calibrated = true;
     foc_pwm_pause(foc);
+    foc->full_rotation = 0;
+    foc->full_rotation_prev = 0;
 
-    FOC_PRINTF("[%s] Calibration success. Init angle: %.3f rad\r\n", FOC_CHECK_NAME(foc->name), foc->init_angle);
-    FOC_PRINTF("[%s] ---------------- Calibration end. ----------------\r\n", FOC_CHECK_NAME(foc->name));
-    FOC_LOCK_RELEASE(foc->lock);
+    FOC_PRINTF("[%s|%d] calibration volt: %.2f V\r\n", FOC_TAG, foc->id, calibration_voltage);
+    FOC_PRINTF("[%s|%d] max smooth volt : %.2f V\r\n", FOC_TAG, foc->id, foc->max_voltage);
+    FOC_PRINTF("[%s|%d] max smooth RPM  : %.2f RPM\r\n", FOC_TAG, foc->id, foc->max_rpm);
+    FOC_PRINTF("[%s|%d] Calibration success. Init angle: %.3f rad\r\n", FOC_TAG, foc->id, foc->init_angle);
+    FOC_PRINTF("[%s|%d] ---------------- Calibration end. ----------------\r\n", FOC_TAG, foc->id);
     return FOC_ERR_OK;
 }
 
@@ -121,7 +125,7 @@ foc_err_enum_t foc_current_calibration(foc_t *foc, size_t calibration_times) {
     FOC_NULL_ASSERT(foc->func.current_sample_get, FOC_ERR_NULL_PTR);
 #endif
 
-    FOC_PRINTF("[%s] ------------ current calibration start. ------------\r\n", FOC_CHECK_NAME(foc->name));
+    FOC_PRINTF("[%s|%d] ------------ current calibration start. ------------\r\n", FOC_TAG, foc->id);
 
     float avg_a = 0.0f;
     float avg_b = 0.0f;
@@ -142,12 +146,12 @@ foc_err_enum_t foc_current_calibration(foc_t *foc, size_t calibration_times) {
     foc->current_param.sensor_offset_b = avg_b * factor;
     foc->current_param.sensor_offset_c = avg_c * factor;
 
-    FOC_PRINTF("[%s] A phase sampling voltage offset: %f (%d)\r\n", FOC_CHECK_NAME(foc->name), foc->current_param.sensor_offset_a, (int)avg_a);
-    FOC_PRINTF("[%s] B phase sampling voltage offset: %f (%d)\r\n", FOC_CHECK_NAME(foc->name), foc->current_param.sensor_offset_b, (int)avg_b);
-    FOC_PRINTF("[%s] C phase sampling voltage offset: %f (%d)\r\n", FOC_CHECK_NAME(foc->name), foc->current_param.sensor_offset_c, (int)avg_c);
-    FOC_PRINTF("[%s] ------------ current calibration done. ------------\r\n", FOC_CHECK_NAME(foc->name));
-
     foc->current_calibrated = true;
+
+    FOC_PRINTF("[%s|%d] A phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, foc->id, foc->current_param.sensor_offset_a, (int)avg_a);
+    FOC_PRINTF("[%s|%d] B phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, foc->id, foc->current_param.sensor_offset_b, (int)avg_b);
+    FOC_PRINTF("[%s|%d] C phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, foc->id, foc->current_param.sensor_offset_c, (int)avg_c);
+    FOC_PRINTF("[%s|%d] ------------ current calibration done. ------------\r\n", FOC_TAG, foc->id);
     return FOC_ERR_OK;
 }
 
@@ -208,7 +212,7 @@ foc_err_enum_t foc_link_pwm_pause(foc_t *foc, foc_pwm_start_t pwm_pause) {
  * @param[in]  name  : Name of the FOC instance
  * @return     : Pointer to the created FOC object, or NULL on failure
  */
-foc_t *foc_create(char *name) {
+foc_t *foc_create(uint8_t id) {
     foc_t *foc = (foc_t *)FOC_MALLOC(sizeof(foc_t));
 #if FOC_USE_FULL_ASSERT == 1
     if (foc == NULL) {
@@ -223,13 +227,14 @@ foc_t *foc_create(char *name) {
     // Initialize to false where applicable
     foc->trigo_calc_done = false;
     foc->pwm_is_running = false;
+    foc->soft_speed_control = false;
 
     foc->inited = true;
     foc->src_voltage = 0.0f;
     foc->velocity = 0.0f;
 
     foc->dir_flag = 1;
-    foc->name = name;
+    foc->id = id;
 
     foc->phase_seq[0] = phase_seq[FOC_DEFAULT_PHASE_SEQ][0];
     foc->phase_seq[1] = phase_seq[FOC_DEFAULT_PHASE_SEQ][1];
@@ -274,6 +279,8 @@ foc_err_enum_t foc_destroy(foc_t *foc) {
     osMutexDelete(foc->lock);
 #endif
 #endif
+
+    foc_enable_soft_ctrl(foc, false);
 
     FOC_FREE(foc);
     return FOC_ERR_OK;
@@ -359,7 +366,7 @@ foc_err_enum_t foc_link_duty(foc_t *foc, unsigned short pwm_period, foc_duty_set
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     FOC_NULL_ASSERT(duty_set, FOC_ERR_NULL_PTR);
     if (pwm_period == 0) {
-        FOC_PRINTF("[%s] pwm period is 0.\r\n", FOC_CHECK_NAME(foc->name));
+        FOC_PRINTF("[%s|%d] pwm period is 0.\r\n", FOC_TAG, foc->id);
         return FOC_ERR_INVALID_PARAM;
     }
 #endif
@@ -397,7 +404,7 @@ foc_err_enum_t foc_set_kv(foc_t *foc, float kv) {
 void foc_pwm_start(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     if (foc->pwm_is_running == true) {
-        FOC_PRINTF("[%s] pwm already is running.\r\n", FOC_CHECK_NAME(foc->name));
+        // FOC_PRINTF("[%s|%d] pwm already is running.\r\n",foc->id);
         return;
     }
 #endif
@@ -408,11 +415,12 @@ void foc_pwm_start(foc_t *foc) {
 void foc_pwm_pause(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     if (foc->pwm_is_running == false) {
-        FOC_PRINTF("[%s] pwm already is paused.\r\n", FOC_CHECK_NAME(foc->name));
+        // FOC_PRINTF("[%s|%d] pwm already is paused.\r\n",foc->id);
         return;
     }
 #endif
     foc->func.pwm_pause();
+    foc->func.duty_set(0, 0, 0);
     foc->pwm_is_running = false;
 }
 
@@ -582,9 +590,9 @@ void FOC_ATTR foc_svpwm(foc_t *foc) {
         }
     }
 
-    if (foc->pwm_is_running == false) {
-        foc_pwm_start(foc);
-    }
+    // if (foc->pwm_is_running == false) {
+    //     foc_pwm_start(foc);
+    // }
 
     foc->func.duty_set((uint16_t)(foc->u_phase[foc->phase_seq[0]] * (float)foc->pwm_period),
                        (uint16_t)(foc->u_phase[foc->phase_seq[1]] * (float)foc->pwm_period),
@@ -628,7 +636,7 @@ foc_err_enum_t foc_torque_calc(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     if (foc->kv_value <= 0) {
-        FOC_PRINTF("[%s] Kv value: %f is invalid.\r\n", FOC_CHECK_NAME(foc->name), foc->kv_value);
+        FOC_PRINTF("[%s|%d] Kv value: %f is invalid.\r\n", FOC_TAG, foc->id, foc->kv_value);
         return FOC_ERR_INVALID_PARAM;
     }
 #endif
@@ -1001,6 +1009,7 @@ foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_s
     theta = (float)raw_data * foc->theta_factor;
     theta_prev = theta;
 
+    foc_pwm_start(foc);
     for (size_t i = 0; i < sustain_ms; i++) {
         foc->theta += angle_step * DEG2RAD;
         foc->theta_elec = foc_normalize_angle((foc->theta - foc->init_angle) * (float)foc->pole_pairs);
@@ -1027,11 +1036,14 @@ foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_s
     } else {
         foc->dir_flag = -1;
     }
-    FOC_PRINTF("[%s] (dir: %d, full rotation: %f).\r\n", FOC_CHECK_NAME(foc->name), foc->dir_flag, d_sum * RAD2DEG);
+    FOC_PRINTF("[%s|%d] (dir: %d, full rotation: %f).\r\n", FOC_TAG, foc->id, foc->dir_flag, d_sum * RAD2DEG);
 
     // dump data
     foc_get_angle(foc);
     foc_get_velocity(foc);
+
+    foc->full_rotation = 0;
+    foc->full_rotation_prev = 0;
 
     return FOC_ERR_OK;
 }
@@ -1045,7 +1057,7 @@ foc_err_enum_t foc_check_dir(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     if (foc->zero_angle_calibrated == false) {
-        FOC_PRINTF("[%s] foc is not calibrated.\r\n", FOC_CHECK_NAME(foc->name));
+        FOC_PRINTF("[%s|%d] foc is not calibrated.\r\n", FOC_TAG, foc->id);
     }
 #endif
 
@@ -1077,6 +1089,8 @@ foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms) {
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
 #endif
 
+    foc->phase_calibrated = false;
+
     if (u_q == 0.0f) {
         return FOC_ERR_INVALID_PARAM;
     }
@@ -1084,14 +1098,16 @@ foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms) {
         return FOC_ERR_OK;
     }
 
+    FOC_LOCK_ACQUIRE(foc->lock, portMAX_DELAY);
+
     for (uint8_t i = 0; i < 2; i++) {
         foc_err_enum_t err = foc_openloop_test(foc, u_q, 0, 0.1f, sustain_ms);
         if (err != FOC_ERR_OK) {
-            FOC_PRINTF("[%s] openloop test error (%d).\r\n", FOC_CHECK_NAME(foc->name), err);
+            FOC_PRINTF("[%s|%d] openloop test error (%d).\r\n", FOC_TAG, foc->id, err);
             return err;
         }
         if (foc->dir_flag != 1) {
-            FOC_PRINTF("[%s] phase sequence (UVW: %d%d%d) error.\r\n", FOC_CHECK_NAME(foc->name),
+            FOC_PRINTF("[%s|%d] phase sequence (UVW: %d%d%d) error.\r\n", FOC_TAG, foc->id,
                        foc->phase_seq[0], foc->phase_seq[1], foc->phase_seq[2]);
             swap(&foc->phase_seq[0], &foc->phase_seq[1]);
         } else {
@@ -1099,13 +1115,16 @@ foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms) {
         }
     }
 
-    if (foc->dir_flag == 1) {
-        FOC_PRINTF("[%s] phase sequence (UVW: %d%d%d) ok.\r\n", FOC_CHECK_NAME(foc->name),
-                   foc->phase_seq[0], foc->phase_seq[1], foc->phase_seq[2]);
-    } else {
-        FOC_PRINTF("[%s] check phase sequence error.\r\n", FOC_CHECK_NAME(foc->name));
-    }
+    // if (foc->dir_flag == 1) {
+    //     FOC_PRINTF("[%s|%d] phase sequence (UVW: %d%d%d) ok.\r\n", FOC_TAG, foc->id,
+    //                foc->phase_seq[0], foc->phase_seq[1], foc->phase_seq[2]);
+    // } else {
+    //     FOC_PRINTF("[%s|%d] check phase sequence error.\r\n", FOC_TAG, foc->id);
+    // }
 
+    foc->phase_calibrated = true;
+
+    FOC_LOCK_RELEASE(foc->lock);
     return FOC_ERR_OK;
 }
 
@@ -1126,15 +1145,15 @@ foc_err_enum_t foc_set_loop_mode(foc_t *foc, foc_loop_enum_t mode) {
     return FOC_ERR_OK;
 }
 
-void foc_position_task(foc_t *foc) {
-}
+// 高频任务（电流环频率，e.g. 10KHz）
+void foc_high_freq_task(foc_t *foc) {
+    if (foc->func.get_angle == NULL) {
+        foc->theta += 0.1f * DEG2RAD; // simulating angle auto increment
+        foc->theta_elec = foc_normalize_angle((foc->theta - foc->init_angle) * (float)foc->pole_pairs);
+    } else {
+        foc_get_angle(foc);
+    }
 
-void foc_speed_task(foc_t *foc) {
-}
-
-
-void foc_cur_sample_task(foc_t *foc) {
-    // current sampling and calculation
     if ((foc->func.current_sample_get != NULL) && (foc->loop_mode & FOC_LOOP_CURRENT)) {
         foc_current_get(foc);
         foc_clarke(foc);
@@ -1146,9 +1165,52 @@ void foc_cur_sample_task(foc_t *foc) {
             foc_lpf_cur_q_calc(foc);
         }
     }
+
+    if (foc->loop_mode & FOC_LOOP_CURRENT) {
+        pid_positional_update(foc->pid.cur_q, foc->i_q, foc->cur_q_setpoint);
+        pid_positional_update(foc->pid.cur_d, foc->i_d, 0);
+        foc->u_d = foc->pid.cur_d->output;
+        foc->u_q = foc->pid.cur_q->output;
+    } else {
+        foc->u_q = foc->cur_q_setpoint; // from velocity controller
+        foc->u_d = 0;
+    }
+
+    foc_inv_park(foc);
+    foc_svpwm(foc);
 }
 
-void foc_control_task(foc_t *foc) {
+// 中频任务（速度环频率，e.g. 1KHz）
+void foc_medium_freq_task(foc_t *foc) {
+    /*-----------------------------------------------
+     * 速度计算与滤波
+     *-----------------------------------------------*/
+    foc_get_velocity(foc);
+    if (foc->lpf.vel != NULL) {
+        foc_lpf_vel_calc(foc);
+    }
+
+    /*-----------------------------------------------
+     * 速度环控制（可选）
+     *-----------------------------------------------*/
+    if (foc->loop_mode & FOC_LOOP_SPEED) {
+        pid_incremental_update(foc->pid.vel,
+                               foc->velocity,
+                               foc->vel_setpoint
+        );
+        foc->cur_q_setpoint = foc->pid.vel->output; // 输出到电流环
+    }
+}
+
+// 低频任务（位置环频率，e.g. 100Hz）
+void foc_low_freq_task(foc_t *foc) {
+    if (foc->loop_mode & FOC_LOOP_POSITION) {
+        pid_incremental_update(foc->pid.pos,
+                               foc->theta + foc->full_rotation,
+                               foc->pos_setpoint
+        );
+        foc->vel_setpoint = foc->pid.pos->output; // 输出到速度环
+    }
 }
 
 /**
@@ -1207,6 +1269,105 @@ void foc_task(foc_t *foc) {
     foc_inv_park(foc);
     foc_svpwm(foc);
 }
+
+
+foc_err_enum_t foc_enable_soft_ctrl(foc_t *foc, bool enable) {
+    if (enable) {
+        if (!(foc->loop_mode & FOC_LOOP_SPEED)) {
+            FOC_PRINTF("[%s|%d] you must enable speed loop when enable soft speed control.\r\n", FOC_TAG, foc->id);
+            foc->soft_speed_control = false;
+            return FOC_ERR_FAILED;
+        }
+        if (foc->speed_ramp != NULL) {
+            FOC_PRINTF("[%s|%d] speed ramp already enable.\r\n", FOC_TAG, foc->id);
+            return FOC_ERR_OK;
+        }
+
+        foc->speed_ramp = (soft_ctrl_ramp_t *)FOC_MALLOC(sizeof(soft_ctrl_ramp_t));
+        if (foc->speed_ramp == NULL) {
+            FOC_PRINTF("[%s|%d] allocate memory for speed ramp failed. check your memory.\r\n", FOC_TAG, foc->id);
+            return FOC_ERR_NULL_PTR;
+        }
+        memset(foc->speed_ramp, 0, sizeof(soft_ctrl_ramp_t));
+        soft_ctrl_ramp_init(foc->speed_ramp, 0);
+    } else {
+        if (foc->speed_ramp == NULL) {
+            FOC_PRINTF("[%s|%d] speed ramp not enable.\r\n", FOC_TAG, foc->id);
+            return FOC_ERR_OK;
+        }
+        FOC_FREE(foc->speed_ramp);
+        foc->speed_ramp = NULL;
+    }
+    foc->soft_speed_control = enable;
+    return FOC_ERR_OK;
+}
+
+
+/**
+ * @brief      : Set the target speed of the FOC object
+ * @param[in] foc: The FOC object
+ * @param[in] speed: The target speed in rad/s
+ * @param[in] duration: The duration of the speed change in seconds
+ */
+static void _foc_set_speed(foc_t *foc, float speed, float duration) {
+    if (foc->soft_speed_control && foc->speed_ramp != NULL) {
+        const float current_vel = foc->velocity;
+        if (fabsf(speed - current_vel) < 1e-6f) {
+            foc->vel_setpoint = speed;
+        } else {
+            soft_ctrl_ramp_start_accel(foc->speed_ramp, speed, duration);
+        }
+    } else {
+        foc->vel_setpoint = speed;
+    }
+}
+
+/**
+ * @brief      : Set the target speed of the FOC object in rad/s
+ * @param[in] foc: The FOC object
+ * @param[in] speed: The target speed in rad/s
+ * @param[in] duration: The duration of the speed change in seconds
+ */
+void foc_set_speed_rad(foc_t *foc, float speed, float duration) {
+    _foc_set_speed(foc, speed, duration);
+}
+
+
+/**
+ * @brief      : Set the target speed of the FOC object in RPM
+ * @param[in] foc: The FOC object
+ * @param[in] rpm: The target speed in RPM
+ * @param[in] duration: The duration of the speed change in seconds
+ */
+void foc_set_speed_rpm(foc_t *foc, float rpm, float duration) {
+    const float rads = rpm / 60.0f * TWOPI;
+    _foc_set_speed(foc, rads, duration);
+}
+
+
+/**
+ * @brief      : Set the target speed of the FOC object in revolutions per second
+ * @param[in] foc: The FOC object
+ * @param[in] rps: The target speed in revolutions per second
+ * @param[in] duration: The duration of the speed change in seconds
+ */
+void foc_set_speed_rps(foc_t *foc, float rps, float duration) {
+    const float rads = rps * TWOPI;
+    _foc_set_speed(foc, rads, duration);
+}
+
+
+void foc_set_pos_rad(foc_t *foc, float position, float duration) {
+}
+
+
+void foc_set_pos_deg(foc_t *foc, float position, float duration) {
+}
+
+
+void foc_set_torque(foc_t *foc, float torque) {
+}
+
 
 #if FOC_DATA_PERSISTENCE == 1
 /**

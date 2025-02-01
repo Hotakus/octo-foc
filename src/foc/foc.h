@@ -12,7 +12,7 @@
 
 #include "foc_config.h"
 #include "pid.h"
-
+#include "soft_control.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -38,6 +38,7 @@ extern "C" {
 #define FOC_DEFAULT_CUR_Q_SETPOINT  (0.1f)              // 0.1A
 #define FOC_DEFAULT_PHASE_SEQ       (0u)                // default phase sequence
 
+#define FOC_EPSILON 1e-6f
 /* --------------------- FOC_MATH_CAL_METHOD --------------------- */
 #if FOC_MATH_CAL_METHOD == 0
 #include <math.h>
@@ -265,16 +266,17 @@ typedef struct foc_t {
     } func;
 
     /*--------------------- Debug/System Control ---------------------*/
-    char *name;                    // Instance identifier
+    uint8_t id;                    // Instance identifier
     float init_angle;              // Initial mechanical offset (rad)
     float torque;                  // Estimated torque (Nm)
+    soft_ctrl_ramp_t *speed_ramp;  // Ramp controller
 
     // Status flags
     union {
         uint16_t state;
         struct {
             bool phase_calibrated : 1;     // Phase calibration status
-            bool current_phase_aligned : 1;// Current-phase alignment status
+            bool soft_speed_control : 1;   // Soft speed control
             bool current_calibrated : 1;   // Current sensor calibration
             bool zero_angle_calibrated : 1;// Zero angle calibration
             bool trigo_calc_done : 1;      // Trigonometry calculation done
@@ -310,7 +312,7 @@ typedef struct foc_t {
 /* ------------------------ Function prototypes ------------------------ */
 /* FOC Initialization and Destruction */
 
-foc_t *foc_create(char *name);
+foc_t *foc_create(uint8_t id);
 foc_err_enum_t foc_destroy(foc_t *foc);
 
 /* FOC Calibration */
@@ -326,22 +328,8 @@ foc_err_enum_t foc_link_pwm_pause(foc_t *foc, foc_pwm_start_t pwm_pause);
 foc_err_enum_t foc_link_duty(foc_t *foc, unsigned short pwm_period, foc_duty_set_t duty_set);
 foc_err_enum_t foc_link_current_sample(foc_t *foc, foc_current_sample_get_t current_sample_get);
 
-/**
- * @brief Angle sensor type enum
- */
-typedef enum foc_angle_sensor_enum_t {
-    FOC_ANGLE_SENSOR_NONE = 0,
-    FOC_ANGLE_SENSOR_AS5600,
-    FOC_ANGLE_SENSOR_AS5047A,
-    FOC_ANGLE_SENSOR_AS5047B,
-    FOC_ANGLE_SENSOR_AS5048A,
-    FOC_ANGLE_SENSOR_AS5048B,
-    FOC_ANGLE_SENSOR_MT6701 ,
-    FOC_ANGLE_SENSOR_MT6835 ,
-} foc_angle_sensor_enum_t;
 
 /* FOC Parameters Set */
-foc_err_enum_t foc_enable_angle_sensor(foc_t *foc, foc_angle_sensor_enum_t angle_sensor_type);
 foc_err_enum_t foc_set_src_voltage(foc_t *foc, float src_voltage);
 foc_err_enum_t foc_set_kv(foc_t *foc, float kv);
 foc_err_enum_t foc_set_pole_pairs(foc_t *foc, unsigned char pole_pairs);
@@ -399,18 +387,24 @@ void foc_get_angle(foc_t *foc);
 foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_step, size_t sustain_ms);
 foc_err_enum_t foc_check_dir(foc_t *foc);
 foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms);
-foc_err_enum_t foc_check_current_phase_seq(); // TODO: check current phase sequence
 
 /* FOC Task */
 foc_err_enum_t foc_set_loop_mode(foc_t *foc, foc_loop_enum_t mode);
 void foc_task(foc_t *foc);
 
-void foc_position_task(foc_t *foc);
-void foc_speed_task(foc_t *foc);
-void foc_cur_sample_task(foc_t *foc);
-void foc_control_task(foc_t *foc);
+void foc_high_freq_task(foc_t *foc);
+void foc_medium_freq_task(foc_t *foc);
+void foc_low_freq_task(foc_t *foc);
 
+foc_err_enum_t foc_enable_soft_ctrl(foc_t *foc, bool enable);
+void foc_set_speed_rad(foc_t *foc, float speed, float duration);
+void foc_set_speed_rpm(foc_t *foc, float rpm, float duration);
+void foc_set_speed_rps(foc_t *foc, float rps, float duration);
+void foc_set_pos_rad(foc_t *foc, float position, float duration);
+void foc_set_pos_deg(foc_t *foc, float position, float duration);
+void foc_set_torque(foc_t *foc, float torque);
 
+void foc_basic_check(foc_t *foc);
 
 /* FOC Data Persistence */
 #if FOC_DATA_PERSISTENCE == 1
