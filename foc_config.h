@@ -44,6 +44,7 @@
 /* --------------------- Include --------------------- */
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 /* --------------------- FOC_USE_FREERTOS --------------------- */
 #if FOC_USE_FREERTOS == 1
