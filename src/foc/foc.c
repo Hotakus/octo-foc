@@ -953,7 +953,7 @@ void FOC_ATTR foc_get_angle(foc_t *foc) {
     foc->theta = (float)raw_data * foc->theta_factor;
 
     float d_angle = (foc->theta - foc->theta_prev);
-    const float threshold = 0.8 * PI;
+    const float threshold = 0.8f * PI;
     if (fabsf(d_angle) > threshold) {
         foc->full_rotation += (d_angle > 0) ? -TWOPI : TWOPI;
     }
