@@ -266,7 +266,7 @@ typedef struct foc_t {
     } func;
 
     /*--------------------- Debug/System Control ---------------------*/
-    uint8_t id;                    // Instance identifier
+    const char *name;                    // Instance identifier
     float init_angle;              // Initial mechanical offset (rad)
     float torque;                  // Estimated torque (Nm)
     soft_ctrl_ramp_t *speed_ramp;  // Ramp controller
@@ -312,7 +312,7 @@ typedef struct foc_t {
 /* ------------------------ Function prototypes ------------------------ */
 /* FOC Initialization and Destruction */
 
-foc_t *foc_create(uint8_t id);
+foc_t *foc_create(const char *name);
 foc_err_enum_t foc_destroy(foc_t *foc);
 
 /* FOC Calibration */

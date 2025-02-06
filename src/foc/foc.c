@@ -68,7 +68,7 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
         return FOC_ERR_INVALID_PARAM;
     }
 
-    FOC_PRINTF("[%s|%d] ---------------- Calibration Start. ----------------\r\n", FOC_TAG, foc->id);
+    FOC_PRINTF("[%s|%s] ---------------- Calibration Start. ----------------\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
 
     /* some calculation */
     foc->max_voltage = foc->src_voltage / SQRT3; // calculate max voltage of ensuring smooth control
@@ -94,7 +94,7 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
 
     if (retry == 0) {
         foc_pwm_pause(foc);
-        FOC_PRINTF("[%s|%d] ---------------- Calibration failed ----------------\r\n", FOC_TAG, foc->id);
+        FOC_PRINTF("[%s|%s] ---------------- Calibration failed ----------------\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
         FOC_LOCK_RELEASE(foc->lock);
         return FOC_ERR_FAILED;
     }
@@ -105,11 +105,11 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
     foc->full_rotation = 0;
     foc->full_rotation_prev = 0;
 
-    FOC_PRINTF("[%s|%d] calibration volt: %.2f V\r\n", FOC_TAG, foc->id, calibration_voltage);
-    FOC_PRINTF("[%s|%d] max smooth volt : %.2f V\r\n", FOC_TAG, foc->id, foc->max_voltage);
-    FOC_PRINTF("[%s|%d] max smooth RPM  : %.2f RPM\r\n", FOC_TAG, foc->id, foc->max_rpm);
-    FOC_PRINTF("[%s|%d] Calibration success. Init angle: %.3f rad\r\n", FOC_TAG, foc->id, foc->init_angle);
-    FOC_PRINTF("[%s|%d] ---------------- Calibration end. ----------------\r\n", FOC_TAG, foc->id);
+    FOC_PRINTF("[%s|%s] calibration volt: %.2f V\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), calibration_voltage);
+    FOC_PRINTF("[%s|%s] max smooth volt : %.2f V\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->max_voltage);
+    FOC_PRINTF("[%s|%s] max smooth RPM  : %.2f RPM\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->max_rpm);
+    FOC_PRINTF("[%s|%s] Calibration success. Init angle: %.3f rad\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->init_angle);
+    FOC_PRINTF("[%s|%s] ---------------- Calibration end. ----------------\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
     return FOC_ERR_OK;
 }
 
@@ -125,7 +125,7 @@ foc_err_enum_t foc_current_calibration(foc_t *foc, size_t calibration_times) {
     FOC_NULL_ASSERT(foc->func.current_sample_get, FOC_ERR_NULL_PTR);
 #endif
 
-    FOC_PRINTF("[%s|%d] ------------ current calibration start. ------------\r\n", FOC_TAG, foc->id);
+    FOC_PRINTF("[%s|%s] ------------ current calibration start. ------------\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
 
     float avg_a = 0.0f;
     float avg_b = 0.0f;
@@ -148,10 +148,10 @@ foc_err_enum_t foc_current_calibration(foc_t *foc, size_t calibration_times) {
 
     foc->current_calibrated = true;
 
-    FOC_PRINTF("[%s|%d] A phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, foc->id, foc->current_param.sensor_offset_a, (int)avg_a);
-    FOC_PRINTF("[%s|%d] B phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, foc->id, foc->current_param.sensor_offset_b, (int)avg_b);
-    FOC_PRINTF("[%s|%d] C phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, foc->id, foc->current_param.sensor_offset_c, (int)avg_c);
-    FOC_PRINTF("[%s|%d] ------------ current calibration done. ------------\r\n", FOC_TAG, foc->id);
+    FOC_PRINTF("[%s|%s] A phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->current_param.sensor_offset_a, (int)avg_a);
+    FOC_PRINTF("[%s|%s] B phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->current_param.sensor_offset_b, (int)avg_b);
+    FOC_PRINTF("[%s|%s] C phase sampling voltage offset: %f (%d)\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->current_param.sensor_offset_c, (int)avg_c);
+    FOC_PRINTF("[%s|%s] ------------ current calibration done. ------------\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
     return FOC_ERR_OK;
 }
 
@@ -212,7 +212,7 @@ foc_err_enum_t foc_link_pwm_pause(foc_t *foc, foc_pwm_start_t pwm_pause) {
  * @param[in]  name  : Name of the FOC instance
  * @return     : Pointer to the created FOC object, or NULL on failure
  */
-foc_t *foc_create(uint8_t id) {
+foc_t *foc_create(const char *name) {
     foc_t *foc = (foc_t *)FOC_MALLOC(sizeof(foc_t));
 #if FOC_USE_FULL_ASSERT == 1
     if (foc == NULL) {
@@ -234,7 +234,7 @@ foc_t *foc_create(uint8_t id) {
     foc->velocity = 0.0f;
 
     foc->dir_flag = 1;
-    foc->id = id;
+    foc->name = name;
 
     foc->phase_seq[0] = phase_seq[FOC_DEFAULT_PHASE_SEQ][0];
     foc->phase_seq[1] = phase_seq[FOC_DEFAULT_PHASE_SEQ][1];
@@ -366,7 +366,7 @@ foc_err_enum_t foc_link_duty(foc_t *foc, unsigned short pwm_period, foc_duty_set
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     FOC_NULL_ASSERT(duty_set, FOC_ERR_NULL_PTR);
     if (pwm_period == 0) {
-        FOC_PRINTF("[%s|%d] pwm period is 0.\r\n", FOC_TAG, foc->id);
+        FOC_PRINTF("[%s|%s] pwm period is 0.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
         return FOC_ERR_INVALID_PARAM;
     }
 #endif
@@ -404,7 +404,7 @@ foc_err_enum_t foc_set_kv(foc_t *foc, float kv) {
 void foc_pwm_start(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     if (foc->pwm_is_running == true) {
-        // FOC_PRINTF("[%s|%d] pwm already is running.\r\n",foc->id);
+        // FOC_PRINTF("[%s|%s] pwm already is running.\r\n",FOC_CHECK_NAME(foc->name));
         return;
     }
 #endif
@@ -415,7 +415,7 @@ void foc_pwm_start(foc_t *foc) {
 void foc_pwm_pause(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     if (foc->pwm_is_running == false) {
-        // FOC_PRINTF("[%s|%d] pwm already is paused.\r\n",foc->id);
+        // FOC_PRINTF("[%s|%s] pwm already is paused.\r\n",FOC_CHECK_NAME(foc->name));
         return;
     }
 #endif
@@ -636,7 +636,7 @@ foc_err_enum_t foc_torque_calc(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     if (foc->kv_value <= 0) {
-        FOC_PRINTF("[%s|%d] Kv value: %f is invalid.\r\n", FOC_TAG, foc->id, foc->kv_value);
+        FOC_PRINTF("[%s|%s] Kv value: %f is invalid.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->kv_value);
         return FOC_ERR_INVALID_PARAM;
     }
 #endif
@@ -1036,7 +1036,7 @@ foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_s
     } else {
         foc->dir_flag = -1;
     }
-    FOC_PRINTF("[%s|%d] (dir: %d, full rotation: %f).\r\n", FOC_TAG, foc->id, foc->dir_flag, d_sum * RAD2DEG);
+    FOC_PRINTF("[%s|%s] (dir: %d, full rotation: %f).\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->dir_flag, d_sum * RAD2DEG);
 
     // dump data
     foc_get_angle(foc);
@@ -1057,7 +1057,7 @@ foc_err_enum_t foc_check_dir(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     if (foc->zero_angle_calibrated == false) {
-        FOC_PRINTF("[%s|%d] foc is not calibrated.\r\n", FOC_TAG, foc->id);
+        FOC_PRINTF("[%s|%s] foc is not calibrated.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
     }
 #endif
 
@@ -1103,11 +1103,11 @@ foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms) {
     for (uint8_t i = 0; i < 2; i++) {
         foc_err_enum_t err = foc_openloop_test(foc, u_q, 0, 0.1f, sustain_ms);
         if (err != FOC_ERR_OK) {
-            FOC_PRINTF("[%s|%d] openloop test error (%d).\r\n", FOC_TAG, foc->id, err);
+            FOC_PRINTF("[%s|%s] openloop test error (%d).\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), err);
             return err;
         }
         if (foc->dir_flag != 1) {
-            FOC_PRINTF("[%s|%d] phase sequence (UVW: %d%d%d) error.\r\n", FOC_TAG, foc->id,
+            FOC_PRINTF("[%s|%s] phase sequence (UVW: %d%d%d) error.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name),
                        foc->phase_seq[0], foc->phase_seq[1], foc->phase_seq[2]);
             swap(&foc->phase_seq[0], &foc->phase_seq[1]);
         } else {
@@ -1116,10 +1116,10 @@ foc_err_enum_t foc_check_phase_seq(foc_t *foc, float u_q, size_t sustain_ms) {
     }
 
     // if (foc->dir_flag == 1) {
-    //     FOC_PRINTF("[%s|%d] phase sequence (UVW: %d%d%d) ok.\r\n", FOC_TAG, foc->id,
+    //     FOC_PRINTF("[%s|%s] phase sequence (UVW: %d%d%d) ok.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name),
     //                foc->phase_seq[0], foc->phase_seq[1], foc->phase_seq[2]);
     // } else {
-    //     FOC_PRINTF("[%s|%d] check phase sequence error.\r\n", FOC_TAG, foc->id);
+    //     FOC_PRINTF("[%s|%s] check phase sequence error.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
     // }
 
     foc->phase_calibrated = true;
@@ -1194,7 +1194,7 @@ void foc_medium_freq_task(foc_t *foc) {
      * 速度环控制（可选）
      *-----------------------------------------------*/
     if (foc->loop_mode & FOC_LOOP_SPEED) {
-        pid_incremental_update(foc->pid.vel,
+        pid_positional_update(foc->pid.vel,
                                foc->velocity,
                                foc->vel_setpoint
         );
@@ -1205,7 +1205,7 @@ void foc_medium_freq_task(foc_t *foc) {
 // 低频任务（位置环频率，e.g. 100Hz）
 void foc_low_freq_task(foc_t *foc) {
     if (foc->loop_mode & FOC_LOOP_POSITION) {
-        pid_incremental_update(foc->pid.pos,
+        pid_positional_update(foc->pid.pos,
                                foc->theta + foc->full_rotation,
                                foc->pos_setpoint
         );
@@ -1274,25 +1274,25 @@ void foc_task(foc_t *foc) {
 foc_err_enum_t foc_enable_soft_ctrl(foc_t *foc, bool enable) {
     if (enable) {
         if (!(foc->loop_mode & FOC_LOOP_SPEED)) {
-            FOC_PRINTF("[%s|%d] you must enable speed loop when enable soft speed control.\r\n", FOC_TAG, foc->id);
+            FOC_PRINTF("[%s|%s] you must enable speed loop when enable soft speed control.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
             foc->soft_speed_control = false;
             return FOC_ERR_FAILED;
         }
         if (foc->speed_ramp != NULL) {
-            FOC_PRINTF("[%s|%d] speed ramp already enable.\r\n", FOC_TAG, foc->id);
+            FOC_PRINTF("[%s|%s] speed ramp already enable.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
             return FOC_ERR_OK;
         }
 
         foc->speed_ramp = (soft_ctrl_ramp_t *)FOC_MALLOC(sizeof(soft_ctrl_ramp_t));
         if (foc->speed_ramp == NULL) {
-            FOC_PRINTF("[%s|%d] allocate memory for speed ramp failed. check your memory.\r\n", FOC_TAG, foc->id);
+            FOC_PRINTF("[%s|%s] allocate memory for speed ramp failed. check your memory.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
             return FOC_ERR_NULL_PTR;
         }
         memset(foc->speed_ramp, 0, sizeof(soft_ctrl_ramp_t));
         soft_ctrl_ramp_init(foc->speed_ramp, 0);
     } else {
         if (foc->speed_ramp == NULL) {
-            FOC_PRINTF("[%s|%d] speed ramp not enable.\r\n", FOC_TAG, foc->id);
+            FOC_PRINTF("[%s|%s] speed ramp not enable.\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
             return FOC_ERR_OK;
         }
         FOC_FREE(foc->speed_ramp);
