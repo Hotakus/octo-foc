@@ -12,10 +12,6 @@
 #include <stdlib.h>
 #include "foc.h"
 
-#include <util_math.h>
-
-#include "foc_fs_port.h"
-
 #define FOC_TAG                     "FOC"
 #define FOC_UNKNOWN                 "Unknown FOC object"
 #define FOC_CHECK_NAME(name)        (name ? name : FOC_UNKNOWN)
