@@ -262,7 +262,7 @@ uint32_t mt6835_get_raw_angle(mt6835_t *mt6835, mt6835_read_angle_method_enum_t 
 #if MT6835_USE_CRC == 1
         if (crc_table(rx_buf, 3) != rx_buf[3]) {
             MT6835_DEBUG("%s crc check failed\r\n", TAG);
-            crc_res = false;
+            mt6835->crc_res = false;
             return 0;
         }
 #endif

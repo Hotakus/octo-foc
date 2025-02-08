@@ -15,7 +15,7 @@
 #include "stdlib.h"
 
 #define MT6835_USE_DEBUG        (1u)    // enable debug or not
-#define MT6835_USE_CRC          (0u)    // enable CRC or not
+#define MT6835_USE_CRC          (1u)    // enable CRC or not
 #define MT6835_MALLOC(x)        malloc(x)
 #define MT6835_FREE(x)          free(x)
 
