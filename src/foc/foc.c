@@ -118,7 +118,7 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
 foc_err_enum_t foc_current_calibration(foc_t *foc, size_t calibration_times) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
-    FOC_NULL_ASSERT(foc->func.current_sample_get, FOC_ERR_NULL_PTR);
+    FOC_NULL_ASSERT(foc->ops.current_sample_get, FOC_ERR_NULL_PTR);
 #endif
 
     FOC_PRINTF("[%s|%s] ------------ current calibration start. ------------\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
@@ -128,7 +128,7 @@ foc_err_enum_t foc_current_calibration(foc_t *foc, size_t calibration_times) {
     float avg_c = 0.0f;
     int a, b, c;
     for (size_t i = 0; i < calibration_times; i++) {
-        foc->func.current_sample_get(&a, &b, &c);
+        foc->ops.current_sample_get(&a, &b, &c);
         avg_a += (float)a;
         avg_b += (float)b;
         avg_c += (float)c;
@@ -166,7 +166,7 @@ foc_err_enum_t foc_link_angle_sensor(foc_t *foc, void (*get_angle)(uint32_t *raw
         return FOC_ERR_INVALID_PARAM;
     }
 #endif
-    foc->func.get_angle = get_angle;
+    foc->ops.get_angle = get_angle;
     foc->angle_sensor_resolution = resolution;
     foc->theta_factor = TWOPI / (float)resolution;
     return FOC_ERR_OK;
@@ -183,7 +183,7 @@ foc_err_enum_t foc_link_pwm_start(foc_t *foc, foc_pwm_start_t pwm_start) {
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     FOC_NULL_ASSERT(pwm_start, FOC_ERR_NULL_PTR);
 #endif
-    foc->func.pwm_start = pwm_start;
+    foc->ops.pwm_start = pwm_start;
     return FOC_ERR_OK;
 }
 
@@ -198,7 +198,7 @@ foc_err_enum_t foc_link_pwm_pause(foc_t *foc, foc_pwm_start_t pwm_pause) {
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     FOC_NULL_ASSERT(pwm_pause, FOC_ERR_NULL_PTR);
 #endif
-    foc->func.pwm_pause = pwm_pause;
+    foc->ops.pwm_pause = pwm_pause;
     return FOC_ERR_OK;
 }
 
@@ -322,12 +322,12 @@ foc_err_enum_t foc_set_dt(foc_t *foc, float dt) {
 foc_err_enum_t foc_current_get(foc_t *foc) {
 #if FOC_USE_FULL_ASSERT == 1
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
-    FOC_NULL_ASSERT(foc->func.current_sample_get, FOC_ERR_NULL_PTR);
+    FOC_NULL_ASSERT(foc->ops.current_sample_get, FOC_ERR_NULL_PTR);
 #endif
 
     int a, b, c;
     float factor = foc->current_param.u_ref / (float)foc->current_param.resolution;
-    foc->func.current_sample_get(&a, &b, &c);
+    foc->ops.current_sample_get(&a, &b, &c);
 
     if (c == 0) {
         foc->i_u = ((float)a * factor - foc->current_param.sensor_offset_a) * foc->current_param.coeff;
@@ -367,7 +367,7 @@ foc_err_enum_t foc_link_duty(foc_t *foc, unsigned short pwm_period, foc_duty_set
     }
 #endif
     foc->pwm_period = pwm_period;
-    foc->func.duty_set = duty_set;
+    foc->ops.duty_set = duty_set;
     return FOC_ERR_OK;
 }
 
@@ -376,7 +376,7 @@ foc_err_enum_t foc_link_current_sample(foc_t *foc, foc_current_sample_get_t curr
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
     FOC_NULL_ASSERT(current_sample_get, FOC_ERR_NULL_PTR);
 #endif
-    foc->func.current_sample_get = current_sample_get;
+    foc->ops.current_sample_get = current_sample_get;
     return FOC_ERR_OK;
 }
 
@@ -404,7 +404,7 @@ void foc_pwm_start(foc_t *foc) {
         return;
     }
 #endif
-    foc->func.pwm_start();
+    foc->ops.pwm_start();
     foc->pwm_is_running = true;
 }
 
@@ -415,8 +415,8 @@ void foc_pwm_pause(foc_t *foc) {
         return;
     }
 #endif
-    foc->func.pwm_pause();
-    foc->func.duty_set(0, 0, 0);
+    foc->ops.pwm_pause();
+    foc->ops.duty_set(0, 0, 0);
     foc->pwm_is_running = false;
 }
 
@@ -590,9 +590,9 @@ void FOC_ATTR foc_svpwm(foc_t *foc) {
     //     foc_pwm_start(foc);
     // }
 
-    foc->func.duty_set((uint16_t)(foc->u_phase[foc->phase_seq[0]] * (float)foc->pwm_period),
-                       (uint16_t)(foc->u_phase[foc->phase_seq[1]] * (float)foc->pwm_period),
-                       (uint16_t)(foc->u_phase[foc->phase_seq[2]] * (float)foc->pwm_period));
+    foc->ops.duty_set((uint16_t)(foc->u_phase[foc->phase_seq[0]] * (float)foc->pwm_period),
+                      (uint16_t)(foc->u_phase[foc->phase_seq[1]] * (float)foc->pwm_period),
+                      (uint16_t)(foc->u_phase[foc->phase_seq[2]] * (float)foc->pwm_period));
 
     foc->trigo_calc_done = false; // recalculate trigonometry
 }
@@ -605,7 +605,7 @@ void FOC_ATTR foc_svpwm(foc_t *foc) {
  * @param t_w Duty cycle for phase W
  */
 void FOC_ATTR foc_pwm_set_duty(foc_t *foc, uint16_t t_u, uint16_t t_v, uint16_t t_w) {
-    foc->func.duty_set(t_u, t_v, t_w);
+    foc->ops.duty_set(t_u, t_v, t_w);
 }
 
 /**
@@ -945,7 +945,7 @@ pid_t *foc_pid_cur_d(const foc_t *foc) {
  */
 void FOC_ATTR foc_get_angle(foc_t *foc) {
     uint32_t raw_data = 0;
-    foc->func.get_angle(&raw_data);
+    foc->ops.get_angle(&raw_data);
     foc->theta = (float)raw_data * foc->theta_factor;
 
     float d_angle = (foc->theta - foc->theta_prev);
@@ -1001,7 +1001,7 @@ foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_s
     float d_angle = 0;
     uint32_t raw_data = 0;
 
-    foc->func.get_angle(&raw_data);
+    foc->ops.get_angle(&raw_data);
     theta = (float)raw_data * foc->theta_factor;
     theta_prev = theta;
 
@@ -1010,7 +1010,7 @@ foc_err_enum_t foc_openloop_test(foc_t *foc, float u_q, float u_d, float angle_s
         foc->theta += angle_step * DEG2RAD;
         foc->theta_elec = foc_normalize_angle((foc->theta - foc->init_angle) * (float)foc->pole_pairs);
 
-        foc->func.get_angle(&raw_data);
+        foc->ops.get_angle(&raw_data);
         theta = (float)raw_data * foc->theta_factor;
         d_angle = theta - theta_prev;
         d_sum += d_angle;
@@ -1143,14 +1143,14 @@ foc_err_enum_t foc_set_loop_mode(foc_t *foc, foc_loop_enum_t mode) {
 
 // 高频任务（电流环频率，e.g. 10KHz）
 void foc_high_freq_task(foc_t *foc) {
-    if (foc->func.get_angle == NULL) {
+    if (foc->ops.get_angle == NULL) {
         foc->theta += 0.1f * DEG2RAD; // simulating angle auto increment
         foc->theta_elec = foc_normalize_angle((foc->theta - foc->init_angle) * (float)foc->pole_pairs);
     } else {
         foc_get_angle(foc);
     }
 
-    if ((foc->func.current_sample_get != NULL) && (foc->loop_mode & FOC_LOOP_CURRENT)) {
+    if ((foc->ops.current_sample_get != NULL) && (foc->loop_mode & FOC_LOOP_CURRENT)) {
         foc_current_get(foc);
         foc_clarke(foc);
         foc_park(foc);
@@ -1191,8 +1191,8 @@ void foc_medium_freq_task(foc_t *foc) {
      *-----------------------------------------------*/
     if (foc->loop_mode & FOC_LOOP_SPEED) {
         pid_positional_update(foc->pid.vel,
-                               foc->velocity,
-                               foc->vel_setpoint
+                              foc->velocity,
+                              foc->vel_setpoint
         );
         foc->cur_q_setpoint = foc->pid.vel->output; // 输出到电流环
     }
@@ -1202,8 +1202,8 @@ void foc_medium_freq_task(foc_t *foc) {
 void foc_low_freq_task(foc_t *foc) {
     if (foc->loop_mode & FOC_LOOP_POSITION) {
         pid_positional_update(foc->pid.pos,
-                               foc->theta + foc->full_rotation,
-                               foc->pos_setpoint
+                              foc->theta + foc->full_rotation,
+                              foc->pos_setpoint
         );
         foc->vel_setpoint = foc->pid.pos->output; // 输出到速度环
     }
@@ -1215,7 +1215,7 @@ void foc_low_freq_task(foc_t *foc) {
  */
 void foc_task(foc_t *foc) {
     // angle and velocity
-    if (foc->func.get_angle == NULL) {
+    if (foc->ops.get_angle == NULL) {
         foc->theta += 0.1f * DEG2RAD; // simulating angle auto increment
         foc->theta_elec = foc_normalize_angle((foc->theta - foc->init_angle) * (float)foc->pole_pairs);
     } else {
@@ -1227,7 +1227,7 @@ void foc_task(foc_t *foc) {
     }
 
     // current sampling and calculation
-    if ((foc->func.current_sample_get != NULL) && (foc->loop_mode & FOC_LOOP_CURRENT)) {
+    if ((foc->ops.current_sample_get != NULL) && (foc->loop_mode & FOC_LOOP_CURRENT)) {
         foc_current_get(foc);
         foc_clarke(foc);
         foc_park(foc);

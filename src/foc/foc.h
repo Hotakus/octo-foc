@@ -263,7 +263,7 @@ typedef struct foc_t {
         foc_pwm_pause_t pwm_pause;
         void (*get_angle)(uint32_t *raw_data); // Angle sensor read callback
         foc_current_sample_get_t current_sample_get; // Current sampling callback
-    } func;
+    } ops;
 
     /*--------------------- Debug/System Control ---------------------*/
     const char *name;                    // Instance identifier
