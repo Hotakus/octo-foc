@@ -19,7 +19,7 @@ extern "C" {
 #endif
 
 #include "as5600.h"
-
+as5600_handle_t *as5600_esp_idf_i2c_port_init(void);
 
 #ifdef __cplusplus
 }
