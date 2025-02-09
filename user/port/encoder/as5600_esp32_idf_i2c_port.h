@@ -10,12 +10,15 @@
 #ifndef AS5600_ESP32_IDF_I2C_PORT_H
 #define AS5600_ESP32_IDF_I2C_PORT_H
 
-
+#define AS5600_ESP32_IDF_I2C_PORT_ENABLE  (0u)
+#define AS5600_ESP32_IDF_I2C_PORT_DEBUG   printf
+#define AS5600_ESP32_IDF_I2C_PORT_DELAY   vTaskDelay
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "as5600.h"
 
 
 #ifdef __cplusplus
