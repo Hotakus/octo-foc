@@ -275,10 +275,12 @@ uint32_t mt6835_get_raw_angle(mt6835_t *mt6835, mt6835_read_angle_method_enum_t 
 
 
 uint32_t mt6835_get_zero_angle(mt6835_t *mt6835) {
+    return 0;
 }
 
 
 bool mt6835_set_zero_angle(mt6835_t *mt6835, uint32_t angle) {
+    return false;
 }
 
 
@@ -310,7 +312,6 @@ void mt6835_write_reg(mt6835_t *mt6835, mt6835_reg_enum_t reg, uint8_t data) {
     mt6835->data_frame.cmd = MT6835_CMD_WR; // byte write command
     mt6835->data_frame.reg = reg;
     mt6835->data_frame.normal_byte = data;
-    printf("write: %x\r\n", mt6835->data_frame.pack);
 
     mt6835->func.spi_cs_control(MT6835_CS_LOW);
     mt6835->func.spi_send_recv((uint8_t *)&mt6835->data_frame.pack, (uint8_t *)&result, 3);
@@ -318,4 +319,5 @@ void mt6835_write_reg(mt6835_t *mt6835, mt6835_reg_enum_t reg, uint8_t data) {
 }
 
 bool mt6835_write_eeprom(mt6835_t *mt6835, uint8_t *data, uint8_t len) {
+    return false;
 }
