@@ -12,7 +12,7 @@
 #include <stdlib.h>
 
 
-#if AS5600_STM32_SPI_PORT_ENABLE == 1
+#if AS5600_STM32_I2C_PORT_ENABLE == 1
 
 #include "i2c.h"
 
@@ -51,7 +51,7 @@ static uint8_t motor1_as5600_iic_write(uint8_t addr, uint8_t reg, uint8_t *buf, 
 
 
 as5600_handle_t *as5600_stm32_i2c_port_init(void) {
-#if AS5600_STM32_SPI_PORT_ENABLE == 1
+#if AS5600_STM32_I2C_PORT_ENABLE == 1
     /* AS5600 init */
     as5600_handle_t *as5600 = malloc(sizeof(as5600_handle_t));
     DRIVER_AS5600_LINK_INIT(as5600, as5600_handle_t);
