@@ -18,7 +18,6 @@ extern "C" {
 
 #include "mt6835.h"
 
-#define
 mt6835_t *mt6835_stm32_spi_port_init(void);
 
 #ifdef __cplusplus
