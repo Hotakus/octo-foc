@@ -12,6 +12,7 @@ file(GLOB_RECURSE SOURCES
 )
 
 add_library(focport STATIC ${SOURCES})
+target_link_libraries(focport PUBLIC focsensor)
 target_include_directories(focport PUBLIC
                            ${CMAKE_CURRENT_SOURCE_DIR}
                            ${CMAKE_CURRENT_SOURCE_DIR}/encoder
