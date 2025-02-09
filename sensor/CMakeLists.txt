@@ -9,8 +9,8 @@ file(GLOB_RECURSE SOURCES
      "./MT6835/*.*"
 )
 
-add_library(sensor STATIC ${SOURCES})
-target_include_directories(sensor PUBLIC
+add_library(focsensor STATIC ${SOURCES})
+target_include_directories(focsensor PUBLIC
                            ${CMAKE_CURRENT_SOURCE_DIR}
                            ${CMAKE_CURRENT_SOURCE_DIR}/AS5600
                            ${CMAKE_CURRENT_SOURCE_DIR}/MT6835

@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 project(octo-foc
         LANGUAGES C
-        VERSION 1.0.2.0
+        VERSION 1.0.3.0
         DESCRIPTION "Octo-FOC"
         HOMEPAGE_URL https://github.com/Hotakus/octo-foc
 )
-#project(octofoc C CXX ASM)
 set(CMAKE_C_STANDARD 99)
 
 # 指定版本号的配置文件
@@ -26,7 +25,7 @@ include_directories(./
                     ./src/pid
                     ./src/qmath
                     ./src/soft_control
-                    foc_port
+                    src/fdcan_driver
 )
 
 file(GLOB_RECURSE SOURCES
@@ -34,17 +33,24 @@ file(GLOB_RECURSE SOURCES
      "./src/pid/*.*"
      "./src/qmath/*.*"
      "./foc_port/*.*"
+     "src/fdcan_driver/*.*"
      "./src/soft_control/*.*"
 )
 
-add_subdirectory(./src/sensor)
+add_subdirectory(./sensor)
+add_subdirectory(./user/port)
+
 add_library(octo-foc STATIC ${SOURCES})
-target_link_libraries(octo-foc sensor)
+target_link_libraries(octo-foc
+                      focsensor
+                      focport
+)
+
 target_include_directories(octo-foc PUBLIC
                            ${CMAKE_CURRENT_SOURCE_DIR}
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/foc
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/pid
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/qmath
                            ${CMAKE_CURRENT_SOURCE_DIR}/src/soft_control
-                           ${CMAKE_CURRENT_SOURCE_DIR}/foc_port
+                           ${CMAKE_CURRENT_SOURCE_DIR}/src/fdcan_driver
 )
