@@ -11,9 +11,8 @@
 #define AS5600_STM32_PORT_H
 
 #define AS5600_STM32_I2C_PORT_ENABLE  (0u)
-
-#define AS5600_PORT_DEBUG   printf
-#define AS5600_PORT_DELAY   HAL_Delay
+#define AS5600_STM32_I2C_PORT_DEBUG   printf
+#define AS5600_STM32_I2C_PORT_DELAY   HAL_Delay
 
 #ifdef __cplusplus
 extern "C" {
