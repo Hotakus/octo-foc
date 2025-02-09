@@ -22,8 +22,8 @@
 
 #define FOC_USE_FULL_ASSERT         (1u)    // 1: enable ; 0: disable
 #define FOC_DEBUG                   (1u)    // 1: enable ; 0: disable
-#define FOC_USE_FREERTOS            (1u)    // 1: use FreeRTOS ; 0: not use
-#define FOC_USE_ESP_IDF             (1u)    // 1: use ESP-IDF ; 0: not use
+#define FOC_USE_FREERTOS            (0u)    // 1: use FreeRTOS ; 0: not use
+#define FOC_USE_ESP_IDF             (0u)    // 1: use ESP-IDF ; 0: not use
 
 /* FOC_DATA_PERSISTENCE use to save important data to storage device
  * such as the "init_angle" item in "foc_t",
