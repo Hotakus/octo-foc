@@ -10,6 +10,7 @@
 #ifndef MT6835_STM32_SPI_PORT_H
 #define MT6835_STM32_SPI_PORT_H
 
+#define MT6835_STM32_SPI_PORT_ENABLE  (1u)
 
 #ifdef __cplusplus
 extern "C" {

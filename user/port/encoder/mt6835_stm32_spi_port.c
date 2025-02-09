@@ -9,7 +9,6 @@
 
 #include "mt6835_stm32_spi_port.h"
 
-#define MT6835_STM32_SPI_PORT_ENABLE  (1u)
 #if MT6835_STM32_SPI_PORT_ENABLE == 1
 
 #include "spi.h"
