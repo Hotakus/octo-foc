@@ -9,12 +9,13 @@
 
 #include "as5600_esp32_idf_i2c_port.h"
 
+
+#if AS5600_ESP32_IDF_I2C_PORT_ENABLE == 1
+
 #include <esp_attr.h>
 #include <esp_err.h>
 #include <driver/i2c_master.h>
 #include <freertos/FreeRTOS.h>
-
-#if AS5600_ESP32_IDF_I2C_PORT_ENABLE == 1
 
 static gpio_num_t i2c0_gpio_sda = GPIO_NUM_19; // I2C0 SDA
 static gpio_num_t i2c0_gpio_scl = GPIO_NUM_18; // I2C0 SCL
