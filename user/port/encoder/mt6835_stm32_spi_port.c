@@ -60,16 +60,22 @@ static void mt6835_spi_send_recv(uint8_t *tx_buf, uint8_t *rx_buf, uint8_t len) 
     }
 }
 
+#endif
+
+
 /**
  * @brief mt6835 stm32 spi port init
  * @return mt6835 object
  */
 mt6835_t * mt6835_stm32_spi_port_init(void) {
+#if MT6835_STM32_SPI_PORT_ENABLE == 1
     mt6835_t *mt6835 = mt6835_create();
     mt6835_link_spi_cs_control(mt6835, mt6835_cs_control);
     mt6835_link_spi_send_recv(mt6835, mt6835_spi_send_recv);
     mt6835_link_spi_send(mt6835, mt6835_spi_send);
     mt6835_link_spi_recv(mt6835, mt6835_spi_recv);
     return mt6835;
-}
+#else
+    return NULL;
 #endif
+}
