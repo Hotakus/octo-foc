@@ -1,18 +1,21 @@
-/**
-******************************************************************************
+/*******************************************************************************
 * @file           : mt6835.c
 * @author         : Hotakus (hotakus@foxmail.com)
 * @brief          : None
-* @date           : 2025/1/20
-******************************************************************************
-*/
+* @date           : 2025/2/10
+*
+* SPDX-License-Identifier: MPL-2.0
+* This Source Code Form is subject to the terms of the Mozilla Public
+* License, v. 2.0. If a copy of the MPL was not distributed with this file,
+* You can obtain one at https://mozilla.org/MPL/2.0/.
+* Copyright (c) 2025 Hotakus. All rights reserved.
+*****************************************************************************/
 
 #include "mt6835.h"
-
+#include <math.h>
 #include <string.h>
 
 static char *TAG = "MT6835";
-
 
 #if MT6835_USE_CRC == 1
 static uint8_t crc8_table[256] = {
@@ -34,6 +37,7 @@ static uint8_t crc8_table[256] = {
     0xde, 0xd9, 0xd0, 0xd7, 0xc2, 0xc5, 0xcc, 0xcb, 0xe6, 0xe1, 0xe8, 0xef, 0xfa, 0xfd, 0xf4, 0xf3,
 };
 
+
 /**
  * @brief  CRC校验：X8+X2+X+1
  * @param  data  数据指针
@@ -51,6 +55,7 @@ static uint8_t crc_table(const uint8_t *data, uint8_t len) {
     return crc;
 }
 
+
 /**
  * @brief enable crc check
  * @param mt6835 mt6835 object
@@ -58,6 +63,7 @@ static uint8_t crc_table(const uint8_t *data, uint8_t len) {
 void mt6835_enable_crc_check(mt6835_t *mt6835) {
     mt6835->crc_check = true;
 }
+
 
 /**
  * @brief disable crc check
@@ -67,6 +73,7 @@ void mt6835_disable_crc_check(mt6835_t *mt6835) {
     mt6835->crc_check = false;
 }
 #endif
+
 
 /**
  * @brief spi cs control, this function is weak, you can override it
@@ -124,7 +131,6 @@ mt6835_t *mt6835_create() {
         return NULL;
     }
     memset(mt6835, 0, sizeof(mt6835_t));
-    mt6835->data_bits = MT6835_DATA_BITS_21;
     mt6835->crc_check = false;
     return mt6835;
 }
@@ -195,6 +201,12 @@ void mt6835_link_spi_recv(mt6835_t *mt6835, void (*spi_recv)(uint8_t *rx_buf, ui
     mt6835->func.spi_recv = spi_recv;
 }
 
+
+/**
+ * @brief link spi send and receive function to mt6835 object
+ * @param mt6835 mt6835 object
+ * @param spi_send_recv spi send and receive function
+ */
 void mt6835_link_spi_send_recv(mt6835_t *mt6835, void (*spi_send_recv)(uint8_t *tx_buf, uint8_t *rx_buf, uint8_t len)) {
     if (mt6835 == NULL) {
         MT6835_DEBUG("%s mt6835 object is null", TAG);
@@ -208,11 +220,22 @@ void mt6835_link_spi_send_recv(mt6835_t *mt6835, void (*spi_send_recv)(uint8_t *
 }
 
 
-/* mt6835 get and set functions*/
+/**
+ * @brief get mt6835 id, the id can be programmed by user
+ * @param mt6835 mt6835 object
+ * @return id
+ */
 uint8_t mt6835_get_id(mt6835_t *mt6835) {
     return mt6835_read_reg(mt6835, MT6835_REG_ID);
 }
 
+
+/**
+ * @brief get mt6835 raw angle
+ * @param mt6835 mt6835 object
+ * @param method read angle method, MT6835_READ_ANGLE_METHOD_NORMAL or MT6835_READ_ANGLE_METHOD_BURST
+ * @return raw angle data in raw
+ */
 uint32_t mt6835_get_raw_angle(mt6835_t *mt6835, mt6835_read_angle_method_enum_t method) {
     uint8_t rx_buf[6] = {0};
     uint8_t tx_buf[6] = {0};
@@ -245,13 +268,9 @@ uint32_t mt6835_get_raw_angle(mt6835_t *mt6835, mt6835_read_angle_method_enum_t 
             }
             mt6835->func.spi_cs_control(MT6835_CS_HIGH);
 
-            /* 调整数据位置:
-             * 原始数据布局 [cmd, reg, ANGLE3, ANGLE2, ANGLE1, CRC]
-             * 调整为      [ANGLE3, ANGLE2, ANGLE1, CRC...]
-             */
-            memmove(rx_buf, &rx_buf[2], 3); // 移动前3个有效数据到起始位置
+            memmove(rx_buf, &rx_buf[2], 3);
             if (mt6835->crc_check) {
-                rx_buf[3] = rx_buf[5]; // 复制CRC到统一位置
+                rx_buf[3] = rx_buf[5];
             }
             break;
         }
@@ -268,23 +287,78 @@ uint32_t mt6835_get_raw_angle(mt6835_t *mt6835, mt6835_read_angle_method_enum_t 
 #endif
     }
 
-    // 统一处理数据解析
     mt6835->state = rx_buf[2] & 0x07;
     return (rx_buf[0] << 13) | (rx_buf[1] << 5) | (rx_buf[2] >> 3);
 }
 
 
-uint32_t mt6835_get_zero_angle(mt6835_t *mt6835) {
-    return 0;
+/**
+ * @brief get mt6835 angle in rad
+ * @param mt6835 mt6835 object
+ * @param method read angle method, MT6835_READ_ANGLE_METHOD_NORMAL or MT6835_READ_ANGLE_METHOD_BURST
+ * @return angle data in rad
+ */
+float mt6835_get_angle(mt6835_t *mt6835, mt6835_read_angle_method_enum_t method) {
+    uint32_t raw_angle = mt6835_get_raw_angle(mt6835, method);
+    return (float)(raw_angle * (M_PI * 2.0f) / MT6835_ANGLE_RESOLUTION);
 }
 
 
-bool mt6835_set_zero_angle(mt6835_t *mt6835, uint32_t angle) {
-    return false;
+/**
+ * @brief get mt6835 raw zero angle in raw
+ * @param mt6835 mt6835 object
+ * @return zero angle data in raw
+ */
+uint16_t mt6835_get_raw_zero_angle(mt6835_t *mt6835) {
+    uint8_t rx_buf[2] = {0};
+    rx_buf[1] = mt6835_read_reg(mt6835, MT6835_REG_ZERO2);
+    rx_buf[0] = mt6835_read_reg(mt6835, MT6835_REG_ZERO1);
+    uint16_t res = (rx_buf[1] << 4) | (rx_buf[0] >> 4);
+    return res;
 }
 
 
-/* mt6835 base functions */
+/**
+ * @brief get mt6835 zero angle in deg
+ * @param mt6835 mt6835 object
+ * @return zero angle data in deg
+ */
+float mt6835_get_zero_angle(mt6835_t *mt6835) {
+    return (float)mt6835_get_raw_zero_angle(mt6835) * MT6835_ZERO_REG_STEP;
+}
+
+
+/**
+ * @brief set mt6835 zero angle
+ * @param mt6835 mt6835 object
+ * @param deg zero angle in deg
+ * @return true: success, false: fail
+ */
+bool mt6835_set_zero_angle(mt6835_t *mt6835, float deg) {
+    uint16_t angle = (uint16_t)roundf(deg / MT6835_ZERO_REG_STEP);
+    if (angle > 0xFFF) {
+        return false;
+    }
+
+    uint8_t tx_buf[2] = {0};
+
+    tx_buf[1] = angle >> 4;
+    tx_buf[0] = (angle & 0x0F) << 4;
+    tx_buf[0] |= mt6835_read_reg(mt6835, MT6835_REG_ZERO1) & 0x0F;
+
+    mt6835_write_reg(mt6835, MT6835_REG_ZERO2, tx_buf[1]);
+    mt6835_write_reg(mt6835, MT6835_REG_ZERO1, tx_buf[0]);
+
+    return true;
+}
+
+
+/**
+ * @brief read mt6835 register
+ * @param mt6835 mt6835 object
+ * @param reg register address, @ref mt6835_reg_enum_t
+ * @return data
+ */
 uint8_t mt6835_read_reg(mt6835_t *mt6835, mt6835_reg_enum_t reg) {
     uint8_t result[3] = {0, 0, 0};
 
@@ -305,6 +379,12 @@ uint8_t mt6835_read_reg(mt6835_t *mt6835, mt6835_reg_enum_t reg) {
     return result[2];
 }
 
+/**
+ * @brief write mt6835 register
+ * @param mt6835 mt6835 object
+ * @param reg register address, @ref mt6835_reg_enum_t
+ * @param data data to write
+ */
 void mt6835_write_reg(mt6835_t *mt6835, mt6835_reg_enum_t reg, uint8_t data) {
     uint8_t result[3] = {0, 0, 0};
 
@@ -318,6 +398,26 @@ void mt6835_write_reg(mt6835_t *mt6835, mt6835_reg_enum_t reg, uint8_t data) {
     mt6835->func.spi_cs_control(MT6835_CS_HIGH);
 }
 
-bool mt6835_write_eeprom(mt6835_t *mt6835, uint8_t *data, uint8_t len) {
-    return false;
+/**
+ * @brief write mt6835 eeprom, you must to write corresponding register first, and then call this function.
+ * you need wait 6 seconds after write eeprom
+ * @param mt6835 mt6835 object
+ * @return true if success, false otherwise
+ */
+bool mt6835_write_eeprom(mt6835_t *mt6835) {
+    uint8_t result[3] = {0, 0, 0xFF};
+
+    mt6835->func.spi_cs_control(MT6835_CS_HIGH);
+    mt6835->data_frame.cmd = MT6835_CMD_EEPROM; // byte read command
+    mt6835->data_frame.reg = 0;
+    mt6835->data_frame.normal_byte = 0;
+
+    mt6835->func.spi_cs_control(MT6835_CS_LOW);
+    mt6835->func.spi_send_recv((uint8_t *)&mt6835->data_frame.pack, (uint8_t *)&result, 3);
+    mt6835->func.spi_cs_control(MT6835_CS_HIGH);
+
+    if (result[2] == 0xFF) {
+        return false;
+    }
+    return true;
 }

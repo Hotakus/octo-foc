@@ -1,11 +1,16 @@
 /**
-******************************************************************************
+/*******************************************************************************
 * @file           : mt6835.h
 * @author         : Hotakus (hotakus@foxmail.com)
 * @brief          : None
-* @date           : 2025/1/20
-******************************************************************************
-*/
+* @date           : 2025/2/10
+*
+* SPDX-License-Identifier: MPL-2.0
+* This Source Code Form is subject to the terms of the Mozilla Public
+* License, v. 2.0. If a copy of the MPL was not distributed with this file,
+* You can obtain one at https://mozilla.org/MPL/2.0/.
+* Copyright (c) 2025 Hotakus. All rights reserved.
+*****************************************************************************/
 
 #ifndef MT6835_H
 #define MT6835_H
@@ -29,6 +34,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define MT6835_ZERO_REG_STEP        (0.088f)
+#define MT6835_ANGLE_RESOLUTION     (1 << 21)
 
 typedef enum mt6835_cmd_enum_t {
     MT6835_CMD_RD = (0b0011),               /**< user read register. */
@@ -76,14 +84,6 @@ typedef enum mt6835_crc_check_enum_t {
     MT6835_CRC_CHECK_ENABLE = 1
 } mt6835_crc_check_enum_t;
 
-/**
- *  mt6835 data bits
- */
-typedef enum mt6835_data_bits_enum_t {
-    MT6835_DATA_BITS_21 = 0,
-    MT6835_DATA_BITS_18 = 1
-} mt6835_data_bits_enum_t;
-
 typedef enum mt6835_read_angle_method_enum_t {
     MT6835_READ_ANGLE_METHOD_NORMAL = 0,
     MT6835_READ_ANGLE_METHOD_BURST = 1,
@@ -121,7 +121,6 @@ typedef struct mt6835_t {
 
     uint32_t raw_angle; // raw angle, 21 bits
     mt6835_data_frame_t data_frame;
-    mt6835_data_bits_enum_t data_bits;
     mt6835_state_enum_t state;
     mt6835_crc_check_enum_t crc_check;
 } mt6835_t;
@@ -145,13 +144,15 @@ void mt6835_link_spi_send_recv(mt6835_t *mt6835, void (*spi_send_recv)(uint8_t *
 /* mt6835 get and set functions*/
 uint8_t mt6835_get_id(mt6835_t *mt6835);
 uint32_t mt6835_get_raw_angle(mt6835_t *mt6835, mt6835_read_angle_method_enum_t method);
-uint32_t mt6835_get_zero_angle(mt6835_t *mt6835);
-bool mt6835_set_zero_angle(mt6835_t *mt6835, uint32_t angle);
+uint16_t mt6835_get_raw_zero_angle(mt6835_t *mt6835);
+float mt6835_get_angle(mt6835_t *mt6835, mt6835_read_angle_method_enum_t method);
+float mt6835_get_zero_angle(mt6835_t *mt6835);
+bool mt6835_set_zero_angle(mt6835_t *mt6835, float deg);
 
 /* mt6835 base functions */
 uint8_t mt6835_read_reg(mt6835_t *mt6835, mt6835_reg_enum_t reg);
 void mt6835_write_reg(mt6835_t *mt6835, mt6835_reg_enum_t reg, uint8_t data);
-bool mt6835_write_eeprom(mt6835_t *mt6835, uint8_t *data, uint8_t len);
+bool mt6835_write_eeprom(mt6835_t *mt6835);
 
 
 #ifdef __cplusplus
