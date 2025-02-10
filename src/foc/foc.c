@@ -1,11 +1,15 @@
-/**
-  ******************************************************************************
-  * @file           : foc.c
-  * @author         : Hotakus (hotakus@foxmail.com)
-  * @brief          : None
-  * @date           : 2024/10/7
-  ******************************************************************************
-  */
+/*******************************************************************************
+* @file           : foc.c
+* @author         : Hotakus (hotakus@foxmail.com)
+* @brief          : FOC main header file
+* @date           : 2025/2/10
+*
+* SPDX-License-Identifier: MPL-2.0
+* This Source Code Form is subject to the terms of the Mozilla Public
+* License, v. 2.0. If a copy of the MPL was not distributed with this file,
+* You can obtain one at https://mozilla.org/MPL/2.0/.
+* Copyright (c) 2025 Hotakus. All rights reserved.
+*****************************************************************************/
 
 #include <math.h>
 #include <memory.h>
@@ -66,9 +70,7 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
 
     FOC_PRINTF("[%s|%s] ---------------- Calibration Start. ----------------\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
 
-    /* some calculation */
-    foc->max_voltage = foc->src_voltage / SQRT3; // calculate max voltage of ensuring smooth control
-    foc->max_rpm = foc->max_voltage * foc->kv_value; // calculate max rpm in theory、
+
 
     float calibration_voltage = foc->max_voltage * voltage_divider;
 
@@ -104,7 +106,7 @@ foc_err_enum_t foc_zero_angle_calibration(foc_t *foc, float theta_elec, size_t m
     FOC_PRINTF("[%s|%s] calibration volt: %.2f V\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), calibration_voltage);
     FOC_PRINTF("[%s|%s] max smooth volt : %.2f V\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->max_voltage);
     FOC_PRINTF("[%s|%s] max smooth RPM  : %.2f RPM\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->max_rpm);
-    FOC_PRINTF("[%s|%s] Calibration success. Init angle: %.3f rad\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->init_angle);
+    FOC_PRINTF("[%s|%s] Calibration success. Init angle: %.6f rad (%0.6f deg)\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name), foc->init_angle, foc->init_angle * RAD2DEG);
     FOC_PRINTF("[%s|%s] ---------------- Calibration end. ----------------\r\n", FOC_TAG, FOC_CHECK_NAME(foc->name));
     return FOC_ERR_OK;
 }
@@ -386,6 +388,9 @@ foc_err_enum_t foc_set_src_voltage(foc_t *foc, float src_voltage) {
     FOC_NULL_ASSERT(foc, FOC_ERR_NULL_PTR);
 #endif
     foc->src_voltage = src_voltage;
+    /* some calculation */
+    foc->max_voltage = foc->src_voltage / SQRT3; // calculate max voltage of ensuring smooth control
+    foc->max_rpm = foc->max_voltage * foc->kv_value; // calculate max rpm in theory、
     return FOC_ERR_OK;
 }
 
@@ -415,8 +420,9 @@ void foc_pwm_pause(foc_t *foc) {
         return;
     }
 #endif
-    foc->ops.pwm_pause();
+    memset(foc->u_phase, 0, sizeof(foc->u_phase));
     foc->ops.duty_set(0, 0, 0);
+    foc->ops.pwm_pause();
     foc->pwm_is_running = false;
 }
 
@@ -590,9 +596,11 @@ void FOC_ATTR foc_svpwm(foc_t *foc) {
     //     foc_pwm_start(foc);
     // }
 
-    foc->ops.duty_set((uint16_t)(foc->u_phase[foc->phase_seq[0]] * (float)foc->pwm_period),
-                      (uint16_t)(foc->u_phase[foc->phase_seq[1]] * (float)foc->pwm_period),
-                      (uint16_t)(foc->u_phase[foc->phase_seq[2]] * (float)foc->pwm_period));
+    if (foc->pwm_is_running) {
+        foc->ops.duty_set((uint16_t)(foc->u_phase[foc->phase_seq[0]] * (float)foc->pwm_period),
+                          (uint16_t)(foc->u_phase[foc->phase_seq[1]] * (float)foc->pwm_period),
+                          (uint16_t)(foc->u_phase[foc->phase_seq[2]] * (float)foc->pwm_period));
+    }
 
     foc->trigo_calc_done = false; // recalculate trigonometry
 }
