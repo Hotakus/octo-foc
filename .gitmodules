@@ -1,0 +1,3 @@
+[submodule "sensor/mt6835"]
+	path = sensor/mt6835
+	url = git@github.com:Hotakus/mt6835.git
