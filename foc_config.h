@@ -22,7 +22,7 @@
  * 2: STM32 CORDIC          (such as STM32G4 or some STM32H7 series)
  * 3: custom fast math lib  (fast trigonometric functions)
  */
-#define FOC_MATH_CAL_METHOD         (2u)
+#define FOC_MATH_CAL_METHOD         (3u)
 
 #define FOC_USE_FULL_ASSERT         (1u)    // 1: enable ; 0: disable
 #define FOC_DEBUG                   (1u)    // 1: enable ; 0: disable
