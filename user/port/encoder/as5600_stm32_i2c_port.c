@@ -1,11 +1,15 @@
-/**
-  ******************************************************************************
-  * @file           : as5600_stm32_port.c
-  * @author         : Hotakus (hotakus@foxmail.com)
-  * @brief          : None
-  * @date           : 2025/2/9
-  ******************************************************************************
-  */
+/*******************************************************************************
+* @file           : as5600_stm32_port.c
+* @author         : Hotakus (hotakus@foxmail.com)
+* @brief          : FOC main header file
+* @date           : 2025/2/10
+*
+* SPDX-License-Identifier: MPL-2.0
+* This Source Code Form is subject to the terms of the Mozilla Public
+* License, v. 2.0. If a copy of the MPL was not distributed with this file,
+* You can obtain one at https://mozilla.org/MPL/2.0/.
+* Copyright (c) 2025 Hotakus. All rights reserved.
+*****************************************************************************/
 
 #include "as5600_stm32_i2c_port.h"
 

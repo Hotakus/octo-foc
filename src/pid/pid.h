@@ -1,11 +1,15 @@
-/**
-  ******************************************************************************
-  * @file           : pid.h
-  * @author         : Hotakus (hotakus@foxmail.com)
-  * @brief          : None
-  * @date           : 2024/10/10
-  ******************************************************************************
-  */
+/*******************************************************************************
+* @file           : pid.h
+* @author         : Hotakus (hotakus@foxmail.com)
+* @brief          : FOC main header file
+* @date           : 2025/2/10
+*
+* SPDX-License-Identifier: MPL-2.0
+* This Source Code Form is subject to the terms of the Mozilla Public
+* License, v. 2.0. If a copy of the MPL was not distributed with this file,
+* You can obtain one at https://mozilla.org/MPL/2.0/.
+* Copyright (c) 2025 Hotakus. All rights reserved.
+*****************************************************************************/
 
 #ifndef PID_H
 #define PID_H
